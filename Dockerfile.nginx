@@ -1,0 +1,9 @@
+FROM meshmap.net:latest AS build
+WORKDIR /build
+COPY website ./website/
+COPY configs ./configs
+RUN go build -v -o nginx
+
+FROM debian:bookworm-slim
+COPY --from=build /build/nginx /usr/bin/
+ENTRYPOINT ["/usr/bin/nginx"]
