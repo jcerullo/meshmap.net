@@ -96,7 +96,7 @@
   }
 </style>
 <div id="header">
-  <div><a href="https://meshmap.net/" title="A nearly live map of Meshtastic nodes seen by the official Meshtastic MQTT server">MeshMap</a></div>
+  <div><a href="about.html" title="A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server">About MeshMap</a></div>
   <div>
     <a
       href="#"
@@ -125,6 +125,24 @@
     182, 91, 46, 23, 11, 6, 3, 1,
     1, 0, 0, 0, 0, 0, 0, 0
   ]
+    // create icons
+    var routerIcon = L.icon({
+        className: 'icon-router',
+        iconUrl: 'red-icon.png',
+        iconSize: [17, 25], // increase from 12px to 16px to make hover easier
+    });
+
+    var gatewayIcon = L.icon({
+        className: 'icon-mqtt-gateway',
+        iconUrl: 'orange-icon.png',
+        iconSize: [17, 25], // increase from 12px to 16px to make hover easier
+    });
+
+    var defaultIcon = L.icon({
+        className: 'icon-client',
+        iconUrl: 'default-icon.png',
+        iconSize: [15, 20], // increase from 12px to 16px to make hover easier
+    });
   // encodes html reserved characters
   const html = str => str?.replace(/["&<>]/g, match => `&#${match.charCodeAt(0)};`)
   // makes more human-readable time duration strings
@@ -146,18 +164,38 @@
   if (window.localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark')
   }
-  // init map
+  // init map  
   const map = L.map('map', {
     center: window.localStorage.getItem('center')?.split(',') ?? [25, 0],
     zoom: window.localStorage.getItem('zoom') ?? 2,
     zoomControl: false,
     worldCopyJump: true,
   })
+   
   // add tiles
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
   }).addTo(map)
+  
+  // add legend
+    var legendLayerGroup = new L.LayerGroup();
+    var legend = L.control({position: 'bottomleft'});
+    legend.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'leaflet-control-layers');
+        div.style.backgroundColor = 'white';
+        div.style.padding = '12px';
+        div.innerHTML = `<div style="margin-bottom:6px;"><strong>Legend</strong></div>`
+            + `<div style="display:flex"><div class="icon-router" style="width:12px;height:12px;margin-right:4px;margin-top:auto;margin-bottom:auto;"></div> 
+                       <img src="red-icon.png" width='15' height='20'> Router</div>`
+            + `<div style="display:flex"><div class="icon-mqtt-gateway" style="width:12px;height:12px;margin-right:4px;margin-top:auto;margin-bottom:auto;"></div> 
+                       <img src="dark-yellow-icon.png" width='15' height='20'>MQTT Gateway</div>`
+            + `<div style="display:flex"><div class="icon-client" style="width:12px;height:12px;margin-right:4px;margin-top:auto;margin-bottom:auto;"></div> 
+                       <img src="default-icon.png" width='15' height='20'>Client</div>`;
+        return div;
+    };
+    legend.addTo(map)
+    
   // add marker group
   const markers = L.markerClusterGroup({
     disableClusteringAtZoom: zoomLevelNode,
@@ -214,6 +252,9 @@
       temperature, relativeHumidity, barometricPressure,
       neighbors, seenBy
     } = node
+//    const isGateway = Object.values(seenBy).some(seen => via === id);
+//    const nodeIcon = isGateway ? gatewayIcon : defaultIcon;
+    const nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; //router takes precedence over gateway
     const id = `!${Number(nodeNum).toString(16)}`
     neighborsByNode[nodeNum] ??= new Set()
     if (neighbors) {
@@ -297,7 +338,12 @@
     if (markersByNode[nodeNum] === undefined) {
       const searchString = `${longName} (${shortName}) ${id}`
       nodesBySearchString[searchString] = nodeNum
-      markersByNode[nodeNum] = L.marker(position, {alt: 'Node', opacity, searchString})
+      markersByNode[nodeNum] = L.marker(position, {
+           icon: nodeIcon,
+           alt: 'Node', 
+           opacity, 
+           searchString
+           })
         .bindTooltip(tooltipContent)
         .bindPopup(popupContent, {maxWidth: 500})
         .on('popupopen', () => {
@@ -306,6 +352,7 @@
         })
         .addTo(markers)
     } else {
+      markersByNode[nodeNum].setIcon(nodeIcon)
       markersByNode[nodeNum].setOpacity(opacity)
       markersByNode[nodeNum].setTooltipContent(tooltipContent)
       markersByNode[nodeNum].setPopupContent(popupContent)

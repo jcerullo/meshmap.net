@@ -1,0 +1,91 @@
+<!DOCTYPE HTML>
+<html lang = "en">
+<head>
+  <title>about.html</title>
+  <meta charset = "UTF-8" />
+
+</head>
+
+<body>
+ 
+
+	<h1>About Meshmap</h1>
+
+<h4>
+This website displays a map of The Villages, FL with colored pins representing the last known locations<br>
+ of the meshtastic radios owned by village residents. 
+</h4>
+
+<h4><u>Purpose</u></h4>
+
+<h4>
+The primary purpose of the map is to provide a tool for network topology management. For a meshtastic mesh network <br>
+to operate successfully, the location of routers, MQTT gateways and clients is crucial; and in order to manage<br>
+ that changing topology, visual information is helpful. 
+</h4>
+
+<h4>
+<u>How It Works </u>
+</h4>
+
+<h4>
+We assume that village residents use the radio settings defined at https://handsontechorg.weebly.com/meshtastic.html. <br>
+The required settings are detailed below. We intercept MQTT packets that are published to the topic msh/US/FL/thevillages,<br>
+decode the packets and save the time and location data in a persistent database. A html program reads data from the <br>
+database and displays it on a background map.
+</h4>
+
+<font color="red"> 
+Your radio will appear on the map when the required radio settings are saved and the radio is close enough to be heard by a MQTT gateway node.
+</font>
+
+<h4>
+<u>Required Radio Settings</u>
+</h4>
+
+<h4>
+In order for a radio to consistently appear on the map, all of the following criteria must be met. <br>
+Settings > LoRa > OK to MQTT Enabled <br>
+Settings > MQTT > Root Topic > msh/US/FL/thvillages <br>
+Settings > Allow Location publication <br>
+Settings > Location Accuracy > not precise 
+</h4>
+
+<h4>
+<u>FAQ</u> <br><br>
+
+<font color="red">
+How do I remove my radio from the map? <br><br>
+</font>
+The fastest way to remove a radio from the map is to disable OK to MQTT in the radio's LoRa settings.  <br><br>
+
+<font color="red">
+Why do some radios that do not satisfy the required radio settings appear on the map?   <br><br>
+</font>
+MQTT gateway nodes unconditionally publish secondary-channel packet information received from its neighbors (0 hop nodes)<br>
+ to msh/US/FL/thvillages. <br><br>
+ 
+<font color="red">
+Can I add additional node information to the map? <br><br>
+</font>
+Not yet. <br><br>
+
+<font color="red">
+Why is it necessary to disable precise location settings? <br><br>
+</font>
+ In August, 2024 Meshtastic made a change to their MQTT server: only LongFast position packets with imprecise <br>
+ location information [10-16 bits] are published to a topic, ensuring that sensitive data is not exposed. <br>
+ The most accurate resolution that conforms to this specification is 364 meters/1194 feet.  <br><br>
+
+<font color="red">
+Doesn't https://meshmap.net do the same thing as https://thevillages.duckdns.org/meshmap?  <br><br>
+</font>
+The goal of meshmap.net is to display the current location of all active meshtastic devices in the world in almost <br>
+realtime.  The goal of thevillages.duckdns.org/meshmap is to display the last known location of all meshtastic devices, <br>
+both active and inactive, in The Villages, FL. 
+</h4>
+
+    <footer>
+    </footer>
+</body>
+</html>
