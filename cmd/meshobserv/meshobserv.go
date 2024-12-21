@@ -15,15 +15,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/brianshea2/meshmap.net/internal/meshtastic"
-	"github.com/brianshea2/meshmap.net/internal/meshtastic/generated"
+	"github.com/jcerullo/meshmap.net/internal/meshtastic"
+	"github.com/jcerullo/meshmap.net/internal/meshtastic/generated"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	NodeExpiration     = 86400 // 1 day
-	NeighborExpiration = 7200  // 2 hr
-	MetricsExpiration  = 7200  // 2 hr
+	NodeExpiration     = 86400*365 // 1 year
+	NeighborExpiration = 3600*2    // 2 hr
+	MetricsExpiration  = 3600*2    // 2 hr
 	PruneWriteInterval = time.Minute
 )
 
@@ -228,14 +228,10 @@ func main() {
 	// connect to MQTT
 	client := &meshtastic.MQTTClient{
 		Topics: []string{
-			"msh/+/2/map/",
-			"msh/+/2/e/+/+",
-			"msh/+/+/2/map/",
-			"msh/+/+/2/e/+/+",
-			"msh/+/+/+/2/map/",
-			"msh/+/+/+/2/e/+/+",
-			"msh/+/+/+/+/2/map/",
-			"msh/+/+/+/+/2/e/+/+",
+			"msh/US/FL/thevillages/2/map/",
+			"msh/US/FL/thevillages/2/e/+/+",
+			"msh/US/FL/thevillages/+/2/map/",
+			"msh/US/FL/thevillages/+/2/e/+/+",
 		},
 		TopicRegex: regexp.MustCompile(`^msh(?:/[^/]+)+/2/(?:e/[^/]+/![0-9a-f]+|map/)$`),
 		Accept: func(from uint32) bool {

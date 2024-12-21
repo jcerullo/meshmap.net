@@ -104,7 +104,7 @@
       title="Toggle dark mode"
     ><i class="fa fa-moon-o fa-lg dark-hidden"></i><i class="fa fa-sun-o fa-lg dark-only"></i></a>
   </div>
-  <div><a href="https://github.com/brianshea2/meshmap.net" title="GitHub"><i class="fa fa-github fa-lg"></i></a></div>
+  <div><a href="https://github.com/jcerullo/meshmap.net" title="GitHub"><i class="fa fa-github fa-lg"></i></a></div>
   <div><a href="https://meshtastic.org/">Meshtastic</a></div>
 </div>
 <div id="map"></div>
@@ -319,7 +319,7 @@
   const drawMap = async shouldDraw => {
     if (shouldDraw) {
       try {
-        await fetch('/nodes.json').then(r => r.json()).then(updateNodes)
+        await fetch('nodes.json').then(r => r.json()).then(updateNodes)
       } catch (e) {
         console.error('Failed to update nodes:', e)
       }
