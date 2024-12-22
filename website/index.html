@@ -129,13 +129,13 @@
     var routerIcon = L.icon({
         className: 'icon-router',
         iconUrl: 'red-icon.png',
-        iconSize: [17, 25], // increase from 12px to 16px to make hover easier
+        iconSize: [20, 30], // increase to make hover easier
     });
 
     var gatewayIcon = L.icon({
         className: 'icon-mqtt-gateway',
-        iconUrl: 'orange-icon.png',
-        iconSize: [17, 25], // increase from 12px to 16px to make hover easier
+        iconUrl: 'dark-yellow-icon.png',
+        iconSize: [20, 30], // increase to make hover easier
     });
 
     var defaultIcon = L.icon({
@@ -252,10 +252,15 @@
       temperature, relativeHumidity, barometricPressure,
       neighbors, seenBy
     } = node
-//    const isGateway = Object.values(seenBy).some(seen => via === id);
-//    const nodeIcon = isGateway ? gatewayIcon : defaultIcon;
-    const nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; //router takes precedence over gateway
-    const id = `!${Number(nodeNum).toString(16)}`
+
+    const id = `!${Number(nodeNum).toString(16)}`    
+    var isGateway = processSeenBy(seenBy, id)    
+    var nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; //gateway takes precedence over router
+    if (isGateway) { 
+        nodeIcon = gatewayIcon;
+    }
+    console.log(nodeIcon, isGateway);
+    
     neighborsByNode[nodeNum] ??= new Set()
     if (neighbors) {
       Object.keys(neighbors).forEach(neighborNum => {
@@ -402,4 +407,18 @@
       history.replaceState(null, '', window.location.pathname)
     }
   })
+  
+function processSeenBy(seenBy, id) {
+  const entries = Object.entries(seenBy).map(([topic, seen]) => {
+    const match = topic.match(/^(.*)(?:\/2\/e\/(.*)\/(![0-9a-f]+)|\/2\/map\/)$/);
+    return {
+      seen,
+      via: match[3] ?? id,
+      root: match[1],
+      chan: match[2]
+    };
+  });
+  const containsSelf = entries.some(entry => entry.via === id);
+  return containsSelf;
+}
 </script>
