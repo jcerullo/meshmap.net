@@ -96,7 +96,7 @@
   }
 </style>
 <div id="header">
-  <div><a href="about.html" title="A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server">About MeshMap</a></div>
+  <div><a href="about.html" title="A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server"><u>About MeshMap</u></a></div>
   <div>
     <a
       href="#"
@@ -138,6 +138,12 @@
         iconSize: [20, 30], // increase to make hover easier
     });
 
+    var clientmuteIcon = L.icon({
+        className: 'icon-mqtt-gateway',
+        iconUrl: 'black-icon.png',
+        iconSize: [15, 20], 
+    });
+    
     var defaultIcon = L.icon({
         className: 'icon-client',
         iconUrl: 'default-icon.png',
@@ -166,7 +172,7 @@
   }
   // init map  
   const map = L.map('map', {
-    center: window.localStorage.getItem('center')?.split(',') ?? [25, 0],
+    center: window.localStorage.getItem('center')?.split(',') ?? [28.892828, 278.02609],
     zoom: window.localStorage.getItem('zoom') ?? 2,
     zoomControl: false,
     worldCopyJump: true,
@@ -187,11 +193,11 @@
         div.style.padding = '12px';
         div.innerHTML = `<div style="margin-bottom:6px;"><strong>Legend</strong></div>`
             + `<div style="display:flex"><div class="icon-router" style="width:12px;height:12px;margin-right:4px;margin-top:auto;margin-bottom:auto;"></div> 
-                       <img src="red-icon.png" width='15' height='20'> Router</div>`
+                       <img src="red-icon.png" width='15' height='20'>: Router</div>`
             + `<div style="display:flex"><div class="icon-mqtt-gateway" style="width:12px;height:12px;margin-right:4px;margin-top:auto;margin-bottom:auto;"></div> 
-                       <img src="dark-yellow-icon.png" width='15' height='20'>MQTT Gateway</div>`
+                       <img src="dark-yellow-icon.png" width='15' height='20'>: MQTT Gateway</div>`
             + `<div style="display:flex"><div class="icon-client" style="width:12px;height:12px;margin-right:4px;margin-top:auto;margin-bottom:auto;"></div> 
-                       <img src="default-icon.png" width='15' height='20'>Client</div>`;
+                       <img src="default-icon.png" width='15' height='20'>: Client</div>`;
         return div;
     };
     legend.addTo(map)
@@ -256,11 +262,13 @@
     const id = `!${Number(nodeNum).toString(16)}`    
     var isGateway = processSeenBy(seenBy, id)    
     var nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; //gateway takes precedence over router
+    if (role === 'CLIENT_MUTE') { 
+        nodeIcon = clientmuteIcon;
+//      return;       // removing the comment will remove client_mute nodes from the map
+    }
     if (isGateway) { 
         nodeIcon = gatewayIcon;
-    }
-    console.log(nodeIcon, isGateway);
-    
+    }    
     neighborsByNode[nodeNum] ??= new Set()
     if (neighbors) {
       Object.keys(neighbors).forEach(neighborNum => {
@@ -271,7 +279,7 @@
     }
     const position = L.latLng([latitude, longitude].map(x => x / 10000000))
     const lastSeen = Math.max(...Object.values(seenBy))
-    const opacity = 1.0 - (Date.now() / 1000 - lastSeen) / 129600
+    const opacity = 1.0 - (Date.now() / 1000 - lastSeen) / (86400 * 365);    // 365 = number of days to completely fade icon
     const tooltipContent = `${html(longName)} (${html(shortName)}) ${since(lastSeen)}`
     const popupContent = `
       <div class="title">${html(longName)} (${html(shortName)})</div>

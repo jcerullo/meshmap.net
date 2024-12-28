@@ -1,9 +1,10 @@
 # [MeshMap.net](https://meshmap.net/)
-A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server
+A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server.
+This implementation is a simple extension of Brian Shea's meshmap.net for node topology management at The Villages, FL.
 
 ## Features
 - Shows all position-reporting nodes heard by Meshtastic's [official MQTT server](https://meshtastic.org/docs/configuration/module/mqtt/#connect-to-the-default-public-server)
-  - Includes nodes self-reporting to MQTT or heard by another node reporting to MQTT
+- Includes nodes self-reporting to MQTT or heard by another node reporting to MQTT
 - Node data is updated every minute
 - Nodes are removed from the map if their position is not updated after one year or if OK to MQTT is disabled
 - Search for nodes by name or ID

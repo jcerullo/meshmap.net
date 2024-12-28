@@ -3,13 +3,21 @@
 <head>
   <title>about.html</title>
   <meta charset = "UTF-8" />
-
+<style>
+  body {
+    position:relative;
+    left:10px;
+    width:880px;
+    margin:0 auto;
+    font-family: "Roboto", sans-serif;
+    font-size: 16px;
+  }
+</style>
 </head>
 
 <body>
- 
 
-	<h1>About Meshmap</h1>
+<h1>About Meshmap</h1>
 
 <h4>
 This website displays a map of The Villages, FL with colored pins representing the last known locations<br>
@@ -58,12 +66,6 @@ Settings > Location Accuracy > not precise
 How do I remove my radio from the map? <br><br>
 </font>
 The fastest way to remove a radio from the map is to disable OK to MQTT in the radio's LoRa settings.  <br><br>
-
-<font color="red">
-Why do some radios that do not satisfy the required radio settings appear on the map?   <br><br>
-</font>
-MQTT gateway nodes unconditionally publish secondary-channel packet information received from its neighbors (0 hop nodes)<br>
- to msh/US/FL/thvillages. <br><br>
  
 <font color="red">
 Can I add additional node information to the map? <br><br>

@@ -228,10 +228,14 @@ func main() {
 	// connect to MQTT
 	client := &meshtastic.MQTTClient{
 		Topics: []string{
-			"msh/US/FL/thevillages/2/map/",
-			"msh/US/FL/thevillages/2/e/+/+",
-			"msh/US/FL/thevillages/+/2/map/",
-			"msh/US/FL/thevillages/+/2/e/+/+",
+			"msh/+/2/map/",
+			"msh/+/2/e/+/+",
+			"msh/+/+/2/map/",
+			"msh/+/+/2/e/+/+",
+			"msh/+/+/+/2/map/",
+			"msh/+/+/+/2/e/+/+",
+			"msh/+/+/+/+/2/map/",
+			"msh/+/+/+/+/2/e/+/+",
 		},
 		TopicRegex: regexp.MustCompile(`^msh(?:/[^/]+)+/2/(?:e/[^/]+/![0-9a-f]+|map/)$`),
 		Accept: func(from uint32) bool {
