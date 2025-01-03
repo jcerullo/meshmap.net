@@ -125,7 +125,7 @@
     182, 91, 46, 23, 11, 6, 3, 1,
     1, 0, 0, 0, 0, 0, 0, 0
   ]
-    // create icons
+    // changeme - create icons
     var routerIcon = L.icon({
         className: 'icon-router',
         iconUrl: 'red-icon.png',
@@ -139,15 +139,15 @@
     });
 
     var clientmuteIcon = L.icon({
-        className: 'icon-mqtt-gateway',
+        className: 'icon-client',
         iconUrl: 'black-icon.png',
-        iconSize: [15, 20], 
+        iconSize: [15, 20],
     });
     
     var defaultIcon = L.icon({
         className: 'icon-client',
         iconUrl: 'default-icon.png',
-        iconSize: [15, 20], // increase from 12px to 16px to make hover easier
+        iconSize: [15, 20],
     });
   // encodes html reserved characters
   const html = str => str?.replace(/["&<>]/g, match => `&#${match.charCodeAt(0)};`)
@@ -158,7 +158,7 @@
       s += `${Math.floor(d / 86400)}d `
       d %= 86400
     }
-    if (d > 3600) {
+     if (d > 3600) {
       s += `${Math.floor(d / 3600)}h `
       d %= 3600
     }
@@ -170,9 +170,12 @@
   if (window.localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark')
   }
-  // init map  
+  
+  // changeme - init map - target is lat/lng/zoom of 28.892828, 278.02609, 12
+  //            original is lat/lng/zoom of 25, 0, 2
+  
   const map = L.map('map', {
-    center: window.localStorage.getItem('center')?.split(',') ?? [28.892828, 278.02609],
+    center: window.localStorage.getItem('center')?.split(',') ?? [25, 0],
     zoom: window.localStorage.getItem('zoom') ?? 2,
     zoomControl: false,
     worldCopyJump: true,
@@ -184,7 +187,7 @@
     maxZoom: 19,
   }).addTo(map)
   
-  // add legend
+  // changeme - add legend
     var legendLayerGroup = new L.LayerGroup();
     var legend = L.control({position: 'bottomleft'});
     legend.onAdd = function (map) {
@@ -259,15 +262,17 @@
       neighbors, seenBy
     } = node
 
-    const id = `!${Number(nodeNum).toString(16)}`    
+    const id = `!${Number(nodeNum).toString(16)}`
+
+// changeme - set router, gateway, client and client_mute map positions    
     var isGateway = processSeenBy(seenBy, id)    
-    var nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; //gateway takes precedence over router
+    var nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; 
     if (role === 'CLIENT_MUTE') { 
         nodeIcon = clientmuteIcon;
-//      return;       // removing the comment will remove client_mute nodes from the map
+        return;           // removing or commenting this line will add client_mute nodes to the map
     }
     if (isGateway) { 
-        nodeIcon = gatewayIcon;
+        nodeIcon = gatewayIcon;         // gateway takes precedence over router
     }    
     neighborsByNode[nodeNum] ??= new Set()
     if (neighbors) {

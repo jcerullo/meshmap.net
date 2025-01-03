@@ -9,6 +9,15 @@ This implementation is a simple extension of Brian Shea's meshmap.net for node t
 - Nodes are removed from the map if their position is not updated after one year or if OK to MQTT is disabled
 - Search for nodes by name or ID
 
+### Known Issues
+When the map is displayed for the very first time (or browser data storage is initialized), a world 
+map is displayed rather than a map of the Villages, FL.  You must click and zoom to your preferred 
+map presentation for the Villages.  Your browser will reposition to this presentation on subsequent 
+calls.
+
+Panning to other parts of the world is allowed. But since only routers, gateways and clients are displayed 
+on the map, the node icons for other roles will currently default to client. 
+
 ## FAQs
 
 ### How do I get my node on the map?
@@ -47,3 +56,55 @@ Let's discuss it at a breakfast meeting or catch-up session.
 ### Can I use your code for my own map in my own region?
 Sure! Go for it!!
 
+## Installation Instructions
+
+The detailed instructions here are for the installation of a Raspberry PI webserver that displays a map of The Villages, FL with colored pins representing the roles and locations of the meshtastic radios owned by village residents. Adjustments would have to be made for differences in operation system (raspberry pi), webserver (apache2) or geographic location (The Villages, FL).
+
+### Pre-installation Requirements
+
+docker
+apache2
+git
+bash
+
+### Command Line Entries on Raspberry Pi
+
+sudo apt update
+sudo apt upgrade
+
+### Install backend database: 
+
+    cd ~
+    git clone https://github.com/jcerullo/meshmap.net.git
+    cd meshmap.net
+    git init    
+    cd meshmap.net/scripts
+    sudo bash build-meshobserv.sh                   [build a backend docker container]
+    sudo bash run-meshobserv.sh                     [run the docker container]
+    sudo docker ps                                  [check that the docker container is up and running]
+    sudo docker exec -it meshobserv sh              
+    '# cd data/meshmap.net/website                  [position to the internal location of the database, nodes.json]
+    '# ls -l                                        [run several times to check that nodes.json is growing]
+    '# exit
+
+### Install frontend webserver:
+
+cd /var/www/html
+sudo mkdir meshmap
+cd ~/meshmap.net/website
+sudo cp * /var/www/html/meshmap                     [From your browser enter http://localhost/meshmap to display an unmodified meshmap]
+
+### Customize pin icons: colors, size, roles
+
+cd /var/www/html/meshmap
+sudo nano index.html
+search for “changeme” to position to recommended code change locations 
+
+### Modify Author
+
+If you have an external github repository, change the author in these files:
+
+README.md
+mqtt.go
+go.mod
+meshobserv.go
