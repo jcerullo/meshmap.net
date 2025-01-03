@@ -62,15 +62,15 @@ The detailed instructions here are for the installation of a Raspberry PI webser
 
 ### Pre-installation Requirements
 
-docker
-apache2
-git
-bash
+    docker
+    apache2
+    git
+    bash
 
 ### Command Line Entries on Raspberry Pi
 
-sudo apt update
-sudo apt upgrade
+    sudo apt update
+    sudo apt upgrade
 
 ### Install backend database: 
 
@@ -89,22 +89,22 @@ sudo apt upgrade
 
 ### Install frontend webserver:
 
-cd /var/www/html
-sudo mkdir meshmap
-cd ~/meshmap.net/website
-sudo cp * /var/www/html/meshmap                     [From your browser enter http://localhost/meshmap to display an unmodified meshmap]
+    cd /var/www/html
+    sudo mkdir meshmap
+    cd ~/meshmap.net/website
+    sudo cp * /var/www/html/meshmap                 [From your browser enter http://localhost/meshmap to display an unmodified meshmap]
 
 ### Customize pin icons: colors, size, roles
 
-cd /var/www/html/meshmap
-sudo nano index.html
-search for “changeme” to position to recommended code change locations 
+    cd /var/www/html/meshmap
+    sudo nano index.html
+    search for “changeme” to position to recommended code change locations 
 
 ### Modify Author
 
 If you have an external github repository, change the author in these files:
 
-README.md
-mqtt.go
-go.mod
-meshobserv.go
+    README.md
+    mqtt.go
+    go.mod
+    meshobserv.go
