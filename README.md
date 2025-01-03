@@ -7,7 +7,7 @@ This implementation is a simple extension of Brian Shea's meshmap.net for node t
 - Includes nodes self-reporting to MQTT or heard by another node reporting to MQTT
 - Node data is updated every minute
 - Nodes are removed from the map if their position is not updated after one year or if OK to MQTT is disabled
-- Search for nodes by name or ID
+- Search for nodes by name or device ID
 
 ### Known Issues
 When the map is displayed for the very first time (or browser data storage is initialized), a world 
@@ -21,8 +21,7 @@ on the map, the node icons for other roles will currently default to client.
 ## FAQs
 
 ### How do I get my node on the map?
-These are general requirements. Refer to the [official docs](https://meshtastic.org/docs/configuration/) or reach out to the fantastic Meshtastic community
-(such as at [r/meshtastic](https://www.reddit.com/r/meshtastic/)) for additional support.
+These are general requirements.
 - First, make sure you are running a [recent firmware](https://meshtastic.org/downloads/) version
 - Use the default primary channel and encryption key
 - Enable "OK to MQTT" in LoRa configuration (signaling you want your messages uplinked via MQTT)
@@ -42,7 +41,6 @@ The most accurate resolution that conforms to this specification is 364 meters/1
 
 #### To enable MQTT reporting
 - Enable the MQTT module, using all default settings, with 'thevillages' root topic
-- View nodes around your area on the map to find MQTT topics being used
 - Configure your node to connect to wifi or otherwise connect to the internet
 - Enable MQTT uplink on your primary channel
   - It is not necessary, and not recommended unless you know what you're doing, to enable MQTT downlink
