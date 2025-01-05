@@ -1,4 +1,4 @@
-# [MeshMap.net](https://meshmap.net/)
+# [MeshMap](https://thevillages.duckdns.org/meshmap)
 A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server.
 This implementation is a simple extension of Brian Shea's meshmap.net for node topology management at The Villages, FL.
 
@@ -6,7 +6,7 @@ This implementation is a simple extension of Brian Shea's meshmap.net for node t
 - Shows all position-reporting nodes heard by Meshtastic's [official MQTT server](https://meshtastic.org/docs/configuration/module/mqtt/#connect-to-the-default-public-server)
 - Includes nodes self-reporting to MQTT or heard by another node reporting to MQTT
 - Node data is updated every minute
-- Nodes are removed from the map if their position is not updated after one year or if OK to MQTT is disabled
+- Nodes are removed from the map if their position is not updated after one year or if OK to MQTT is disabled or if the device role is set to CLIENT_MUTE
 - Search for nodes by name or device ID
 
 ### Known Issues
@@ -16,7 +16,7 @@ map presentation for the Villages.  Your browser will reposition to this present
 calls.
 
 Panning to other parts of the world is allowed. But since only routers, gateways and clients are displayed 
-on the map, the node icons for other roles will currently default to client. 
+on the map, the node icons for other roles outside The Villages may not be correct. 
 
 ## FAQs
 
@@ -60,6 +60,7 @@ The detailed instructions here are for the installation of a Raspberry PI webser
 
 ### Pre-installation Requirements
 
+    Go
     docker
     apache2
     git
@@ -69,6 +70,7 @@ The detailed instructions here are for the installation of a Raspberry PI webser
 
     sudo apt update
     sudo apt upgrade
+    [install any of the required apps from the above list not already installed on your raspberrry pi]
 
 ### Install backend database: 
 
@@ -90,7 +92,7 @@ The detailed instructions here are for the installation of a Raspberry PI webser
     cd /var/www/html
     sudo mkdir meshmap
     cd ~/meshmap.net/website
-    sudo cp * /var/www/html/meshmap                 [From your browser enter http://localhost/meshmap to display an unmodified meshmap]
+    sudo cp * /var/www/html/meshmap                 [From your browser enter http://[RaspberryPi_IP address]/meshmap to display an unmodified meshmap]
 
 ### Customize pin icons: colors, size, roles
 
