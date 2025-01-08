@@ -4,14 +4,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="description" content="A nearly live map of Meshtastic nodes seen by the official Meshtastic MQTT server">
 <title>MeshMap - Meshtastic Node Map</title>
+<link rel="preload" href="nodes.json" as="fetch" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900">
+<link rel="stylesheet" href="https://unpkg.com/font-awesome@4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-easybutton@2.4.0/src/easy-button.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-search@4.0.0/dist/leaflet-search.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/leaflet-easybutton@2.4.0/src/easy-button.css" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/leaflet-search@4.0.0/dist/leaflet-search.min.css" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/font-awesome@4.7.0/css/font-awesome.min.css" crossorigin="">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" crossorigin="">
 <style>
   html, body, #map {
     height: 100%;
@@ -36,7 +37,7 @@
     color: #333;
     display: flex;
     gap: 2ch;
-    font-family: "Roboto", sans-serif;
+    font-family: "Inter", sans-serif;
     padding: 0.75em;
     position: absolute;
     top: 0;
@@ -72,7 +73,7 @@
     top: 4em;
   }
   .leaflet-tooltip, .leaflet-popup-content {
-    font-family: "Roboto", sans-serif;
+    font-family: "Inter", sans-serif;
     font-size: 12px;
   }
   .leaflet-popup-content .title {
@@ -96,7 +97,9 @@
   }
 </style>
 <div id="header">
-  <div><a href="about.html" title="A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server"><u>About MeshMap</u></a></div>
+  <div>
+    <a href="about.html" title="A map of Meshtastic nodes in The Villages, FL as seen by the official Meshtastic MQTT server"><u>About MeshMap</u></a>
+  </div>
   <div>
     <a
       href="#"
@@ -104,14 +107,14 @@
       title="Toggle dark mode"
     ><i class="fa fa-moon-o fa-lg dark-hidden"></i><i class="fa fa-sun-o fa-lg dark-only"></i></a>
   </div>
-  <div><a href="https://github.com/jcerullo/meshmap.net" title="GitHub"><i class="fa fa-github fa-lg"></i></a></div>
+  <div><a href="https://github.com/brianshea2/meshmap.net" title="GitHub"><i class="fa fa-github fa-lg"></i></a></div>
   <div><a href="https://meshtastic.org/">Meshtastic</a></div>
 </div>
 <div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet-easybutton@2.4.0/src/easy-button.js" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet-search@4.0.0/dist/leaflet-search.min.js" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-easybutton@2.4.0/src/easy-button.js"></script>
+<script src="https://unpkg.com/leaflet-search@4.0.0/dist/leaflet-search.min.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
   const ipinfoToken = 'aeb066758afd49'
   const updateInterval = 65000
@@ -148,9 +151,12 @@
         className: 'icon-client',
         iconUrl: 'default-icon.png',
         iconSize: [15, 20],
-    });
-  // encodes html reserved characters
-  const html = str => str?.replace(/["&<>]/g, match => `&#${match.charCodeAt(0)};`)
+    });  
+    
+  // encodes html reserved characters and ascii control characters
+  const html = str => str
+    ?.replace(/[\x00-\x1F]/g, c => `\\x${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
+    .replace(/["&<>]/g, c => `&#${c.charCodeAt(0)};`)
   // makes more human-readable time duration strings
   const duration = d => {
     let s = ''
@@ -158,7 +164,7 @@
       s += `${Math.floor(d / 86400)}d `
       d %= 86400
     }
-     if (d > 3600) {
+    if (d > 3600) {
       s += `${Math.floor(d / 3600)}h `
       d %= 3600
     }
@@ -180,7 +186,6 @@
     zoomControl: false,
     worldCopyJump: true,
   })
-   
   // add tiles
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -203,8 +208,8 @@
                        <img src="default-icon.png" width='15' height='20'>: Client</div>`;
         return div;
     };
-    legend.addTo(map)
-    
+    legend.addTo(map)  
+  
   // add marker group
   const markers = L.markerClusterGroup({
     disableClusteringAtZoom: zoomLevelNode,
@@ -261,19 +266,20 @@
       temperature, relativeHumidity, barometricPressure,
       neighbors, seenBy
     } = node
-
     const id = `!${Number(nodeNum).toString(16)}`
-
-// changeme - set router, gateway, client and client_mute map positions    
-    var isGateway = processSeenBy(seenBy, id)    
-    var nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; 
-    if (role === 'CLIENT_MUTE') { 
-        nodeIcon = clientmuteIcon;
-        return;           // removing or commenting this line will add client_mute nodes to the map
-    }
-    if (isGateway) { 
-        nodeIcon = gatewayIcon;         // gateway takes precedence over router
-    }    
+    
+  //  changeme - set router, gateway, client and client_mute map positions    
+      let isGateway = false;
+      isGateway = processSeenBy(seenBy, id)      
+      var nodeIcon = role === 'ROUTER' ? routerIcon : defaultIcon; 
+      if (role === 'CLIENT_MUTE') { 
+          nodeIcon = clientmuteIcon;
+          return;           // removing or commenting this line will add client_mute nodes to the map
+      }
+      if (isGateway === true) { 
+          nodeIcon = gatewayIcon;         // gateway takes precedence over router
+      }    
+        
     neighborsByNode[nodeNum] ??= new Set()
     if (neighbors) {
       Object.keys(neighbors).forEach(neighborNum => {
@@ -284,28 +290,30 @@
     }
     const position = L.latLng([latitude, longitude].map(x => x / 10000000))
     const lastSeen = Math.max(...Object.values(seenBy))
+//  changeme opacity setting
     const opacity = 1.0 - (Date.now() / 1000 - lastSeen) / (86400 * 365);    // 365 = number of days to completely fade icon
     const tooltipContent = `${html(longName)} (${html(shortName)}) ${since(lastSeen)}`
     const popupContent = `
       <div class="title">${html(longName)} (${html(shortName)})</div>
       <div>${nodeLink(nodeNum, id)} | ${html(role)} | ${html(hwModel)}</div>
       <table><tbody>
-      ${fwVersion ? `<tr><th>Firmware</th><td>${html(fwVersion)}</td></tr>` : ''}
-      ${region ? `<tr><th>Region</th><td>${html(region)}</td></tr>` : ''}
-      ${modemPreset ? `<tr><th>Modem preset</th><td>${html(modemPreset)}</td></tr>` : ''}
-      ${hasDefaultCh ? `<tr><th>Has default channel</th><td>True</td></tr>` : ''}
-      ${onlineLocalNodes ? `<tr><th>Online local nodes</th><td>${onlineLocalNodes}</td></tr>` : ''}
-      ${batteryLevel ? `<tr><th>Power</th><td>${batteryLevel > 100 ? 'Plugged in' : `${batteryLevel}%`}${voltage ? ` (${voltage.toFixed(2)}V)` : ''}</td></tr>` : ''}
-      ${chUtil ? `<tr><th>ChUtil</th><td>${chUtil.toFixed(2)}%</td></tr>` : ''}
-      ${airUtilTx ? `<tr><th>AirUtilTX</th><td>${airUtilTx.toFixed(2)}%</td></tr>` : ''}
-      ${uptime ? `<tr><th>Uptime</th><td>${duration(uptime)}</td></tr>` : ''}
-      ${temperature ? `<tr><th>Temperature</th><td>${temperature.toFixed(1)}&#8451; / ${(temperature * 1.8 + 32).toFixed(1)}&#8457;</td></tr>` : ''}
-      ${relativeHumidity ? `<tr><th>Relative Humidity</th><td>${Math.round(relativeHumidity)}%</td></tr>` : ''}
+      ${fwVersion          ? `<tr><th>Firmware</th><td>${html(fwVersion)}</td></tr>`                               : ''}
+      ${region             ? `<tr><th>Region</th><td>${html(region)}</td></tr>`                                    : ''}
+      ${modemPreset        ? `<tr><th>Modem preset</th><td>${html(modemPreset)}</td></tr>`                         : ''}
+      ${hasDefaultCh       ? `<tr><th>Has default channel</th><td>True</td></tr>`                                  : ''}
+      ${onlineLocalNodes   ? `<tr><th>Online local nodes</th><td>${onlineLocalNodes}</td></tr>`                    : ''}
+      ${batteryLevel       ? `<tr><th>Power</th><td>${batteryLevel > 100 ? 'Plugged in' : `${batteryLevel}%`}` +
+                             `${voltage ? ` (${voltage.toFixed(2)}V)` : ''}</td></tr>`                             : ''}
+      ${chUtil             ? `<tr><th>ChUtil</th><td>${chUtil.toFixed(2)}%</td></tr>`                              : ''}
+      ${airUtilTx          ? `<tr><th>AirUtilTX</th><td>${airUtilTx.toFixed(2)}%</td></tr>`                        : ''}
+      ${uptime             ? `<tr><th>Uptime</th><td>${duration(uptime)}</td></tr>`                                : ''}
+      ${temperature        ? `<tr><th>Temperature</th><td>${temperature.toFixed(1)}&#8451; / ` +
+                             `${(temperature * 1.8 + 32).toFixed(1)}&#8457;</td></tr>`                             : ''}
+      ${relativeHumidity   ? `<tr><th>Relative Humidity</th><td>${Math.round(relativeHumidity)}%</td></tr>`        : ''}
       ${barometricPressure ? `<tr><th>Barometric Pressure</th><td>${Math.round(barometricPressure)} hPa</td></tr>` : ''}
-      ${altitude ? `<tr><th>Altitude</th><td>${altitude.toLocaleString()} m above MSL</td></tr>` : ''}
-      ${precision && precisionMargins[precision-1] ?
-        `<tr><th>Location precision</th><td>&#177; ${precisionMargins[precision-1].toLocaleString()} m (orange circle)</td></tr>` : ''
-      }
+      ${altitude           ? `<tr><th>Altitude</th><td>${altitude.toLocaleString()} m above MSL</td></tr>`         : ''}
+      ${precision && precisionMargins[precision-1] ? "<tr><th>Location precision</th><td>&#177;" +
+                             `${precisionMargins[precision-1].toLocaleString()} m (orange circle)</td></tr>`       : ''}
       </tbody></table>
       <table><thead>
       <tr><th>Last seen</th><th>via</th><th>root topic</th><th>channel</th></tr>
@@ -313,7 +321,9 @@
       ${Array.from(
         new Map(
           Object.entries(seenBy)
-            .map(([topic, seen]) => (m => ({seen, via: m[3] ?? id, root: m[1], chan: m[2]}))(topic.match(/^(.*)(?:\/2\/e\/(.*)\/(![0-9a-f]+)|\/2\/map\/)$/)))
+            .map(([topic, seen]) => (m => ({seen, via: m[3] ?? id, root: m[1], chan: m[2]}))(
+              topic.match(/^(.*)(?:\/2\/e\/(.*)\/(![0-9a-f]+)|\/2\/map\/)$/s)
+            ))
             .sort((a, b) => a.seen - b.seen)
             .map(v => [v.via, v])
         ).values(),
@@ -381,15 +391,19 @@
     }
   })
   // fetches node data, updates map, repeats
-  const drawMap = async shouldDraw => {
-    if (shouldDraw) {
-      try {
-        await fetch('nodes.json').then(r => r.json()).then(updateNodes)
-      } catch (e) {
-        console.error('Failed to update nodes:', e)
-      }
+  const drawMap = async () => {
+    try {
+      await fetch('nodes.json').then(r => r.json()).then(updateNodes)
+    } catch (e) {
+      console.error('Failed to update nodes:', e)
     }
-    setTimeout(() => drawMap(document.visibilityState === 'visible'), updateInterval)
+    setTimeout(() => {
+      if (document.hidden) {
+        document.addEventListener('visibilitychange', drawMap, {once: true})
+      } else {
+        drawMap()
+      }
+    }, updateInterval)
   }
   // centers map to node and opens popup
   const showNode = nodeNum => {
@@ -415,15 +429,16 @@
     }
   })
   // let's go!!!
-  drawMap(true).then(() => {
+  drawMap().then(() => {
     if (window.location.hash && !showNode(window.location.hash.slice(1))) {
       history.replaceState(null, '', window.location.pathname)
     }
   })
   
+// changeme - identify gateways  
 function processSeenBy(seenBy, id) {
   const entries = Object.entries(seenBy).map(([topic, seen]) => {
-    const match = topic.match(/^(.*)(?:\/2\/e\/(.*)\/(![0-9a-f]+)|\/2\/map\/)$/);
+    const match = topic.match(/^(.*)(?:\/2\/e\/(.*)\/(![0-9a-f]+)|\/2\/map\/)$/s);
     return {
       seen,
       via: match[3] ?? id,
@@ -434,4 +449,5 @@ function processSeenBy(seenBy, id) {
   const containsSelf = entries.some(entry => entry.via === id);
   return containsSelf;
 }
+
 </script>

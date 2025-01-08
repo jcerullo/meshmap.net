@@ -22,7 +22,7 @@ import (
 
 const (
 	NodeExpiration     = 86400*365 // 1 year  (changeme)
-	NeighborExpiration = 3600*2    // 2 hr
+	NeighborExpiration = 3600*8    // 8 hr
 	MetricsExpiration  = 3600*2    // 2 hr
 	PruneWriteInterval = time.Minute
 )
@@ -228,14 +228,14 @@ func main() {
 	// connect to MQTT
 	client := &meshtastic.MQTTClient{
 		Topics: []string{
-			"msh/+/2/map/",
-			"msh/+/2/e/+/+",
-			"msh/+/+/2/map/",
-			"msh/+/+/2/e/+/+",
-			"msh/+/+/+/2/map/",
-			"msh/+/+/+/2/e/+/+",
-			"msh/+/+/+/+/2/map/",
-			"msh/+/+/+/+/2/e/+/+",
+			"msh/US/2/map/",
+			"msh/US/2/e/+/+",
+			"msh/US/+/2/map/",
+			"msh/US/+/2/e/+/+",
+			"msh/US/+/+/2/map/",
+			"msh/US/+/+/2/e/+/+",
+			"msh/US/+/+/+/2/map/",
+			"msh/US/+/+/+/2/e/+/+",
 		},
 		TopicRegex: regexp.MustCompile(`^msh(?:/[^/]+)+/2/(?:e/[^/]+/![0-9a-f]+|map/)$`),
 		Accept: func(from uint32) bool {
