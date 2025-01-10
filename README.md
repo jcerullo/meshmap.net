@@ -56,7 +56,10 @@ Sure! Go for it!!
 
 ## Installation Instructions
 
-The detailed instructions here are for the installation of a Raspberry PI webserver that displays a map of The Villages, FL with colored pins representing the roles and locations of the meshtastic radios owned by village residents. Adjustments would have to be made for differences in operation system (raspberry pi), webserver (apache2) or geographic location (The Villages, FL).
+The detailed instructions here are for the installation of a Raspberry PI webserver that displays a map 
+of The Villages, FL with colored pins representing the roles and locations of the meshtastic radios owned 
+by village residents. Adjustments would have to be made for differences in hardware (raspberry pi), 
+webserver (apache2) or geographic location (The Villages, FL).
 
 ### Pre-installation Requirements
 
@@ -108,3 +111,4 @@ If you have an external github repository, change the author in these files:
     mqtt.go
     go.mod
     meshobserv.go
+    index.html
