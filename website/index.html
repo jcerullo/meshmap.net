@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="description" content="A nearly live map of Meshtastic nodes seen by the official Meshtastic MQTT server">
+<meta name="description" content="A map of Meshtastic nodes seen by the official Meshtastic MQTT server">
 <title>MeshMap - Meshtastic Node Map</title>
 <link rel="preload" href="nodes.json" as="fetch" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900">
@@ -107,7 +107,7 @@
       title="Toggle dark mode"
     ><i class="fa fa-moon-o fa-lg dark-hidden"></i><i class="fa fa-sun-o fa-lg dark-only"></i></a>
   </div>
-  <div><a href="https://github.com/brianshea2/meshmap.net" title="GitHub"><i class="fa fa-github fa-lg"></i></a></div>
+  <div><a href="https://github.com/jcerullo/meshmap.net" title="GitHub"><i class="fa fa-github fa-lg"></i></a></div>
   <div><a href="https://meshtastic.org/">Meshtastic</a></div>
 </div>
 <div id="map"></div>
@@ -277,7 +277,7 @@
           return;           // removing or commenting this line will add client_mute nodes to the map
       }
       if (isGateway === true) { 
-          nodeIcon = gatewayIcon;         // gateway takes precedence over router
+          nodeIcon = gatewayIcon;         // gateway takes precedence over router and client
       }    
         
     neighborsByNode[nodeNum] ??= new Set()
@@ -363,6 +363,7 @@
           .addTo(detailsLayer)
       })
     }
+    // changeme - set node icon
     if (markersByNode[nodeNum] === undefined) {
       const searchString = `${longName} (${shortName}) ${id}`
       nodesBySearchString[searchString] = nodeNum
