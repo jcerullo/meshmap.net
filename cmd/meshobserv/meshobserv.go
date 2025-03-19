@@ -258,14 +258,10 @@ func main() {
 	// connect to MQTT
 	client := &meshtastic.MQTTClient{
 		Topics: []string{
-			"msh/US/2/map/",
-			"msh/US/2/e/+/+",
-			"msh/US/+/2/map/",
-			"msh/US/+/2/e/+/+",
-			"msh/US/+/+/2/map/",
-			"msh/US/+/+/2/e/+/+",
-			"msh/US/+/+/+/2/map/",
-			"msh/US/+/+/+/2/e/+/+",
+			"msh/US/FL/thevillages/2/map/",
+			"msh/US/FL/thevillages/2/e/+/+",
+			"msh/US/FL/thevillages/+/2/map/",
+			"msh/US/FL/thevillages/+/2/e/+/+",
 		},
 		TopicRegex: regexp.MustCompile(`^msh(?:/[^/]+)+/2/(?:e/[^/]+/![0-9a-f]+|map/)$`),
 		Accept: func(from uint32) bool {
@@ -305,7 +301,7 @@ func main() {
 			}
 			NodesMutex.Unlock()
 			if !Receiving.CompareAndSwap(true, false) {
-				log.Fatal("[crit] no messages received")
+				log.Printf("[info] no messages received")
 			}
 		}
 	}()
