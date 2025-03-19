@@ -1,0 +1,107 @@
+<!DOCTYPE HTML>
+<html lang = "en">
+<head>
+  <title>about.html</title>
+  <meta charset = "UTF-8" />
+<style>
+  body {
+    position:relative;
+    left:2px;
+    width:900px;
+    margin:0 auto;
+    font-size: 20px;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>About Meshmap</h1>
+
+<h4>
+This website displays a map of The Villages, FL with colored pins representing the different roles and last known 
+locations of the meshtastic radios owned by village residents. 
+</h4>
+
+<h4><u>Purpose</u></h4>
+
+<h4>
+The primary purpose of the map is to provide a tool for network topology management. For a meshtastic mesh network  
+to operate successfully, the location of routers, MQTT gateways and clients is crucial; and in order to manage 
+ that changing topology, visual information is helpful. 
+</h4>
+
+<h4>
+<u>How It Works </u>
+</h4>
+
+<h4>
+We assume that village residents use the radio settings defined at https://handsontechorg.weebly.com/meshtastic.html.  
+The required settings are detailed below. We intercept MQTT packets that are published to the topic msh/US/FL/thevillages, 
+decode the packets and save the time and location data in a persistent database. A html program reads data from the  
+database and displays it on a background map. Currently, only routers, gateways and clients are displayed on the map.
+CLIENT_MUTE nodes are not displayed.
+</h4>
+
+<font color="red"> 
+Your radio will appear on the map when the required radio settings are saved and the radio is close enough to be 
+heard by a MQTT gateway node.
+</font>
+
+<h4>
+<u>Required Radio Settings</u>
+</h4>
+
+<h4>
+In order for a radio to consistently appear on the map, <i>all</i> of the following criteria must be met: <br>
+Settings > LoRa > OK to MQTT Enabled <br>
+Settings > MQTT > Root Topic > msh/US/FL/thvillages <br>
+Settings > Allow Location publication <br>
+Settings > Location Accuracy > not precise (equal to or greater than 364 m)
+</h4>
+
+<h4>
+<u>Known Issues</u><br><br>
+When the map is displayed for the very first time (or browser data storage is initialized), a world 
+map is displayed rather than a map of The Villages, FL.  Be patient; this can take a minute.  You must then 
+click and zoom to your preferred map presentation of The Villages.  Your browser will reposition to this 
+presentation on subsequent calls.<br><br>
+
+Panning to other parts of the world is allowed. But since only routers, gateways and clients are displayed 
+on the map, the node icons for other roles outside The Villages may not be correct.
+</h4>
+
+<h4>
+<u>FAQ</u> <br><br>
+
+<font color="red">
+How do I remove my radio from the map? <br><br>
+</font>
+The fastest way to remove a radio from the map is to set your radio's role to 'Client Mute' in the Device settings.  <br><br>
+ 
+<font color="red">
+Can I add additional node information to the map? <br><br>
+</font>
+Not yet. <br><br>
+
+<font color="red">
+Why is it necessary to disable precise location settings? <br><br>
+</font>
+ In August, 2024 Meshtastic made a change to their MQTT server: only LongFast position packets with imprecise  
+ location information [10-16 bits] are published to a topic, ensuring that sensitive data is not exposed.  
+ The most accurate resolution that conforms to this specification is 364 meters/1194 feet. You can read about the
+ details at <a href="https://meshtastic.org/blog/recent-public-mqtt-broker-changes/">
+ <u>https://meshtastic.org/blog/recent-public-mqtt-broker-changes.</u></a>  <br><br>
+
+<font color="red">
+Doesn't https://meshmap.net do the same thing as https://thevillages.duckdns.org/meshmap?  <br><br>
+</font>
+The goal of meshmap.net is to display the current location of all active meshtastic devices in the world in almost  
+realtime.  The goal of thevillages.duckdns.org/meshmap is to display the last known location of all meshtastic devices,  
+both active and inactive, in The Villages, FL. 
+</h4>
+
+    <footer>
+    </footer>
+</body>
+</html>
