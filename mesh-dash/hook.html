@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeshDash - We've Moved</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #0f111a;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        
+        .redirect-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .redirect-card {
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            background-color: #1a1d2a;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .card-content {
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #ffffff;
+        }
+        
+        h1 i {
+            color: #4d84ff;
+            margin-right: 10px;
+        }
+        
+        .redirect-subtitle {
+            font-size: 20px;
+            line-height: 1.5;
+            margin: 25px 0;
+            color: rgba(255, 255, 255, 0.85);
+        }
+        
+        a {
+            color: #4d84ff;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        a:hover {
+            color: #75a0ff;
+            text-decoration: underline;
+        }
+        
+        .countdown {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 0 5px;
+            color: #ff6e6e;
+            display: inline-block;
+            min-width: 60px;
+            text-align: center;
+            background-color: rgba(255, 110, 110, 0.1);
+            border-radius: 8px;
+            padding: 10px 15px;
+        }
+        
+        .redirect-links {
+            margin-top: 30px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .btn-primary {
+            background-color: #4d84ff;
+            color: white;
+            box-shadow: 0 4px 15px rgba(77, 132, 255, 0.3);
+        }
+        
+        .btn-primary:hover {
+            background-color: #3a70e8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(77, 132, 255, 0.4);
+            text-decoration: none;
+            color: white;
+        }
+        
+        .redirect-note {
+            margin-top: 20px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        @media (max-width: 600px) {
+            .redirect-card {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 26px;
+            }
+            
+            .redirect-subtitle {
+                font-size: 16px;
+            }
+            
+            .countdown {
+                font-size: 36px;
+                min-width: 50px;
+                padding: 8px 12px;
+            }
+            
+            .btn {
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="redirect-container">
+        <div class="redirect-card">
+            <div class="card-content">
+                <h1><i class="fas fa-rocket"></i> We've Moved to MeshDash!</h1>
+                <p class="redirect-subtitle">
+                    Our website has moved to <a href="https://meshdash.co.uk/">https://meshdash.co.uk/</a>. 
+                    <br>You will be redirected automatically in <span id="countdown" class="countdown">5</span> seconds...
+                </p>
+                <div class="quick-links-promo redirect-links">
+                    <a href="https://meshdash.co.uk/" class="btn btn-primary"><i class="fas fa-cogs"></i> Go to MeshDash Now</a>
+                    <p class="redirect-note">If you are not redirected automatically, please click the button above.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Countdown script
+        let seconds = 5;
+        const countdownElement = document.getElementById('countdown');
+        
+        // Update the countdown every second
+        const countdownInterval = setInterval(function() {
+            seconds--;
+            countdownElement.textContent = seconds;
+            
+            // When countdown reaches zero, redirect and clear interval
+            if (seconds <= 0) {
+                clearInterval(countdownInterval);
+                window.location.href = "https://meshdash.co.uk/";
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

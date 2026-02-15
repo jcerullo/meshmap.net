@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic IoT Sensor Monitor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/static/top_nav.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('nav-placeholder').innerHTML = data;
+
+                const currentPath = window.location.pathname;
+                const navLinks = document.querySelectorAll('.nav-link');
+
+                navLinks.forEach(link => {
+                    const linkPath = link.getAttribute('href');
+                    if (currentPath === linkPath ||
+                        (linkPath !== '/' && currentPath.startsWith(linkPath) && (currentPath.charAt(linkPath.length) === '/' || currentPath.length === linkPath.length)) ||
+                        (currentPath === '/' && linkPath === '/')) {
+                        link.classList.add('active');
+                    }
+                });
+            })
+            .catch(error => console.error('Error loading navigation:', error));
+
+        initializeSensorMonitor();
+    });
+    </script>
+
+<link rel="stylesheet" href="/static/styles.css">
+
+<style>
+    /* --- Custom Styles for Sensor Monitor Page --- */
+    /* Ideally, these styles would go into /static/styles.css */
+
+    /* Styling for the URL input and its container */
+    .input-with-button {
+        display: flex;
+        align-items: stretch; /* Make input and button same height */
+        margin-bottom: 5px;
+    }
+
+    .input-with-button input[type="url"].form-control {
+        flex-grow: 1;
+        padding: 12px 15px;
+        font-size: 1rem;
+        line-height: 1.5;
+        border-radius: 4px 0 0 4px;
+        border-right: none; /* Remove border if button is styled to adjoin */
+        background-color: #333; /* Darker background for input */
+        color: #f1f1f1; /* Light text color */
+        border: 1px solid #555; /* Slightly lighter border */
+    }
+
+    .input-with-button input[type="url"].form-control:focus {
+        border-color: #007bff; /* Highlight border on focus */
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); /* Focus shadow */
+    }
+
+    .input-with-button .btn.primary {
+        padding: 12px 20px;
+        font-size: 1rem;
+        line-height: 1.5;
+        border-radius: 0 4px 4px 0;
+        /* Assuming .btn.primary from styles.css handles dark mode colors */
+    }
+
+    /* Styling for the block search input */
+    #block-search-input.form-control {
+        width: 100%;
+        padding: 12px 15px;
+        font-size: 1rem;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+        background-color: #333;
+        color: #f1f1f1;
+        border: 1px solid #555;
+        border-radius: 4px;
+    }
+    #block-search-input.form-control:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    /* General styling for other form controls to ensure dark mode compatibility */
+    .form-control {
+        background-color: #333; /* Default dark background for form elements */
+        color: #f1f1f1;       /* Default light text */
+        border: 1px solid #555; /* Default border */
+        padding: 10px 12px; /* Consistent padding */
+        font-size: 0.95rem;
+        border-radius: 4px;
+    }
+    .form-control:focus {
+        border-color: #007bff; /* Or your theme's accent color */
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        background-color: #383838; /* Slightly lighter on focus */
+    }
+    select.form-control { /* Specific styling for select elements if needed */
+        appearance: none; /* Optional: for custom dropdown arrow later */
+        background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%208l5%205%205-5z%22%20fill%3D%22%23aaa%22/%3E%3C/svg%3E'); /* Basic SVG arrow */
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        padding-right: 30px; /* Space for the arrow */
+    }
+
+
+    /* Helper text styling for better readability in dark mode */
+    .helper-text {
+        font-size: 0.875em;
+        color: #aaa; /* Lighter grey for helper text in dark mode */
+        margin-top: 0.25rem;
+    }
+    .additional-info-text {
+        font-size: 0.9em;
+        color: #bbb; /* Slightly brighter than helper-text */
+        margin-top: 0.75rem;
+        line-height: 1.6;
+    }
+    .additional-info-text ul {
+        list-style-type: disc;
+        margin-left: 20px;
+        margin-top: 0.5rem;
+    }
+     .additional-info-text li {
+        margin-bottom: 0.3rem;
+    }
+
+    /* Ensure button text and icons are visible in dark mode */
+    .btn i { /* Ensure FontAwesome icons on buttons are visible */
+        margin-right: 0.5em;
+    }
+
+    .pagination #page-info {
+         /* color: #f1f1f1; */
+         margin: 0 10px;
+         align-self: center;
+    }
+
+    /* Selected content preview styling */
+    .selected-content-preview #selected-content {
+        background-color: #3a3a3a;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #555;
+        min-height: 50px;
+        color: #f1f1f1;
+        word-break: break-all;
+    }
+
+</style>
+
+<script src="/static/nav_loader.js" defer></script>
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-thermometer-half"></i> IoT Sensor Monitor <span class="highlight">via Web</span></h1>
+                <div class="status-container">
+                    <span id="status-indicator" class="status-indicator disconnected"></span> <span id="status-text">Initializing...</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div id="local-node-info"><i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong></div>
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-search-location"></i> Monitor Sensor Value from Web Page</h2>
+                </div>
+                <div class="card-content">
+                    <div class="form-wizard">
+                        <div class="wizard-step active" id="step-url">
+                            <h3>Step 1: Enter Sensor Data Page URL</h3>
+                            <div class="form-group">
+                                <label for="website-url">Website URL:</label>
+                                <div class="input-with-button">
+                                    <input type="url" id="website-url" class="form-control" placeholder="https://weatherstation.example.com/data" required>
+                                    <button id="fetch-url-btn" class="btn primary"><i class="fas fa-search"></i> Fetch Content</button>
+                                </div>
+                                <div class="helper-text">Enter the web address where the sensor value is displayed.</div>
+                                <div class="additional-info-text">
+                                    <p>This tool can scrape numerical or text-based sensor data from publicly accessible web pages. For example:</p>
+                                    <ul>
+                                        <li>Scraping current temperature from a local news or weather website.</li>
+                                        <li>Monitoring server status (e.g., "Online", "Offline") from an internal dashboard.</li>
+                                        <li>Tracking IoT sensor readings (e.g., humidity, pressure) from a public data feed.</li>
+                                        <li>Checking water tank levels or energy consumption from a web-based monitoring system.</li>
+                                    </ul>
+                                    <p>Ensure the page content is relatively stable and the value you want is directly visible as text on the page.</p>
+                                </div>
+                            </div>
+                            <div id="url-error" class="error-message" style="display: none;"></div>
+                            <div id="loading-blocks" style="display: none;">
+                                <i class="fas fa-circle-notch fa-spin"></i> Fetching page content...
+                            </div>
+                        </div>
+
+                        <div class="wizard-step" id="step-select-block">
+                            <h3>Step 2: Select Sensor Value Block</h3>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label for="block-search-input">Filter Blocks:</label>
+                                <input type="search" id="block-search-input" class="form-control" placeholder="Search block text...">
+                                <div class="helper-text">Type here to filter the blocks below based on their text content.</div>
+                            </div>
+                            <div class="blocks-container" id="blocks-container">
+                                </div>
+                            <div class="pagination" id="blocks-pagination" style="display: none;">
+                                <button id="prev-page" class="btn secondary"><i class="fas fa-chevron-left"></i> Previous</button>
+                                <span id="page-info">Page 1 of 1</span>
+                                <button id="next-page" class="btn secondary">Next <i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <div class="button-row" style="justify-content: flex-start;">
+                                <button id="back-to-url" class="btn secondary"><i class="fas fa-arrow-left"></i> Back</button>
+                            </div>
+                        </div>
+
+                        <div class="wizard-step" id="step-send">
+                            <h3>Step 3: Send Sensor Value to Meshtastic Node</h3>
+                            <div class="selected-content-preview">
+                                <h4>Selected Sensor Value:</h4>
+                                <div id="selected-content" class="content-preview"></div>
+                                <div class="helper-text">Content from block ID: <span id="selected-block-id">None</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="prefix">Sensor Label (Prefix):</label>
+                                <input type="text" id="prefix" class="form-control" placeholder="Outdoor Temp" required>
+                                <div class="helper-text">Label for the sensor reading (e.g., "Outdoor Temp", "Tank Level", "Device Status")</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="node-id">Destination Node ID:</label>
+                                <input type="text" id="node-id" class="form-control" placeholder="!93f84d8f" required>
+                                <div class="helper-text">The Meshtastic node ID to send the sensor value to (e.g., !93f84d8f)</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="channel">Channel (Optional):</label>
+                                <input type="number" id="channel" class="form-control" min="0" max="7" value="0">
+                                <div class="helper-text">Channel index to use for transmission (default: 0)</div>
+                            </div>
+                            <div id="send-error" class="error-message" style="display: none;"></div>
+                            <div id="send-success" class="success-message" style="display: none;"></div>
+                            <div class="button-row">
+                                <button id="back-to-blocks" class="btn secondary"><i class="fas fa-arrow-left"></i> Back</button>
+                                <button id="send-to-node" class="btn primary"><i class="fas fa-paper-plane"></i> Send to Node</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-info-circle"></i> How to Monitor Web-Based Sensor Data</h2>
+                </div>
+                <div class="card-content">
+                    <div class="instructions">
+                        <h3>Using the Web Sensor Monitor</h3>
+                        <p>This tool helps you extract specific sensor readings (like temperature, humidity, pressure, status) displayed on a website or web page and send them to a Meshtastic node. It's great for monitoring publicly accessible IoT device dashboards or weather station pages.</p>
+
+                        <h4>Step 1: Enter the Web Page URL</h4>
+                        <p>Enter the full web address (URL) of the page showing the sensor data you want to track. Click "Fetch Content" to analyze the page's text elements.</p>
+
+                        <h4>Step 2: Select the Sensor Value Block</h4>
+                        <p>Look through the extracted text snippets presented below. Use the "Filter Blocks" input to search for specific text within the blocks. Find and select the block that contains the <strong>exact</strong> sensor value you need (e.g., just the number "23.5" for temperature). The system will highlight your choice.</p>
+
+                        <h4>Step 3: Configure and Send</h4>
+                        <p>Give your sensor reading a clear label (e.g., "Outdoor Temp", "Device Status", "Tank Level") in the 'Sensor Label (Prefix)' field. This label will appear before the value in the message. Specify the destination Meshtastic node ID and optionally change the channel. Click "Send to Node".</p>
+
+                        <h4>After Sending: Scheduling Regular Checks</h4>
+                        <p>After successfully sending a value, a "Create Task" button will appear in the success confirmation. Click this to set up a schedule (e.g., run once later, daily, weekly) to automatically fetch and send this sensor value at regular intervals.</p>
+
+                        <h4>Example Uses:</h4>
+                        <ul>
+                            <li><strong>Weather Monitoring:</strong> Extract temperature/humidity from a public weather station page.</li>
+                            <li><strong>Device Status:</strong> Track the status ("Online", "Offline", "Error") of an online device shown on a simple status page or dashboard.</li>
+                            <li><strong>Environmental Sensors:</strong> Get readings from environmental sensors (CO2, air quality) displayed on a web interface.</li>
+                            <li><strong>Resource Monitoring:</strong> Check water tank levels or energy consumption data from a web-based monitoring system.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="status-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="status-modal-title"><i class="fas fa-info-circle"></i> Status</h2>
+                    <button class="close-btn" onclick="hideStatusModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div id="status-modal-message" style="margin-bottom: 1.5rem;"></div>
+                    <div class="form-actions">
+                        <button onclick="hideStatusModal()" class="btn secondary">OK</button>
+                        <button onclick="showCreateTaskModal()" class="btn primary" id="create-task-btn">
+                            <i class="fas fa-calendar-plus"></i> Create Task
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="task-setup-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="task-modal-title"><i class="fas fa-calendar-alt"></i> Schedule Sensor Check</h2>
+                    <button class="close-btn" onclick="hideTaskModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="task-form">
+                        <input type="hidden" id="task-url" name="url">
+                        <input type="hidden" id="task-block-id" name="blockId">
+                        <input type="hidden" id="task-prefix" name="prefix">
+                        <input type="hidden" id="task-node-id" name="nodeId">
+                        <input type="hidden" id="task-channel" name="channel">
+
+                        <div class="form-group">
+                            <label>Task Summary:</label>
+                            <div class="task-summary">
+                                <p><strong>Web Page:</strong> <span id="summary-url"></span></p>
+                                <p><strong>Block ID:</strong> <span id="summary-block-id"></span></p>
+                                <p><strong>Sensor Label:</strong> <span id="summary-prefix"></span></p>
+                                <p><strong>Destination:</strong> <span id="summary-node-id"></span> (Channel: <span id="summary-channel"></span>)</p>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Schedule Type:</label>
+                            <div class="schedule-options">
+                                <label><input type="radio" name="scheduleType" value="once" checked> Run Once</label>
+                                <label><input type="radio" name="scheduleType" value="daily"> Daily</label>
+                                <label><input type="radio" name="scheduleType" value="weekly"> Weekly</label>
+                            </div>
+                        </div>
+
+                        <div class="schedule-inputs">
+                            <div id="schedule-input-once" class="form-group">
+                                <label for="task-datetime-once">Date & Time:</label>
+                                <input type="datetime-local" id="task-datetime-once" name="dateTimeOnce" required class="form-control">
+                            </div>
+                            <div id="schedule-input-daily" class="form-group hidden">
+                                <label for="task-datetime-daily">Time:</label>
+                                <input type="time" id="task-datetime-daily" name="timeDaily" class="form-control">
+                            </div>
+                            <div id="schedule-input-weekly" class="form-group hidden">
+                                <label for="task-day-weekly">Day:</label>
+                                <select id="task-day-weekly" name="dayWeekly" class="form-control">
+                                    <option value="1">Monday</option>
+                                    <option value="2">Tuesday</option>
+                                    <option value="3">Wednesday</option>
+                                    <option value="4">Thursday</option>
+                                    <option value="5">Friday</option>
+                                    <option value="6">Saturday</option>
+                                    <option value="0">Sunday</option>
+                                </select>
+                                <label for="task-datetime-weekly" style="margin-left: 1rem;">Time:</label>
+                                <input type="time" id="task-datetime-weekly" name="timeWeekly" class="form-control">
+                            </div>
+                        </div>
+
+                        <div class="cron-preview">
+                            Calculated Crontab:
+                            <pre><code id="calculated-crontab"><span class="na">Select schedule options...</span></code></pre>
+                        </div>
+
+                        <div id="task-error" class="error-message" style="display: none;"></div>
+                        <div id="task-success" class="success-message" style="display: none;"></div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn secondary" onclick="hideTaskModal()">Cancel</button>
+                            <button type="submit" id="save-task-btn" class="btn primary">Create Task</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let extractedBlocks = [];
+        let filteredBlocks = [];
+        let currentPage = 1;
+        let blocksPerPage = 10; /* MODIFIED: Changed from 5 to 10 */
+        let selectedBlockOriginalIndex = null;
+        let websiteUrl = '';
+        let lastSentData = null;
+
+        function sanitizeHTML(str) {
+            if (str === null || str === undefined) return '';
+            const temp = document.createElement('div');
+            temp.textContent = String(str);
+            return temp.innerHTML;
+        }
+
+        function updateStatus(status, message = null) {
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            const safeStatus = status?.toLowerCase() ?? 'disconnected';
+            const displayStatus = (safeStatus === 'ready') ? 'connected' : safeStatus;
+
+            if (statusIndicator) statusIndicator.className = 'status-indicator ' + displayStatus;
+            if (statusText) statusText.textContent = message || status || 'Unknown';
+        }
+
+        function showLoading(selector, show = true, message = 'Loading...') {
+            const element = document.querySelector(selector);
+            if (element) {
+                if (show && element.tagName === 'DIV' && element.querySelector('i')) {
+                    element.style.display = 'flex';
+                    element.style.alignItems = 'center';
+                    element.style.justifyContent = 'center';
+                    const textNode = element.lastChild;
+                    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                        textNode.textContent = ` ${message}`;
+                    }
+                } else {
+                    element.style.display = show ? 'block' : 'none';
+                }
+            }
+        }
+
+        function showError(selector, message = '', show = true) {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.innerHTML = show ? `<i class="fas fa-exclamation-triangle" style="margin-right: 0.5em;"></i> ${sanitizeHTML(message)}` : '';
+                element.style.display = show ? 'block' : 'none';
+            }
+        }
+
+        function showSuccess(selector, message = '', show = true) {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.innerHTML = show ? `<i class="fas fa-check-circle" style="margin-right: 0.5em;"></i> ${sanitizeHTML(message)}` : '';
+                element.style.display = show ? 'block' : 'none';
+            }
+        }
+
+        function showStep(stepId) {
+            document.querySelectorAll('.wizard-step').forEach(step => {
+                step.classList.remove('active');
+            });
+            const step = document.getElementById(stepId);
+            if (step) {
+                step.classList.add('active');
+            }
+        }
+
+        function showModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('active');
+        }
+        function hideModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('active');
+        }
+
+        function showStatusModal(title, message, showCreateTaskBtn = false) {
+            const titleElement = document.getElementById('status-modal-title');
+            const messageElement = document.getElementById('status-modal-message');
+            const createTaskBtn = document.getElementById('create-task-btn');
+
+            if (titleElement) titleElement.innerHTML = `<i class="fas fa-info-circle"></i> ${sanitizeHTML(title)}`;
+            if (messageElement) messageElement.innerHTML = message; // Message can contain HTML
+
+            if (createTaskBtn) {
+                createTaskBtn.style.display = showCreateTaskBtn ? 'inline-flex' : 'none';
+            }
+            showModal('status-modal');
+        }
+
+        function hideStatusModal() {
+            hideModal('status-modal');
+        }
+
+        function showCreateTaskModal() {
+            hideStatusModal();
+
+            if (!lastSentData) {
+                console.error("Cannot create task: No previous sent data available");
+                showStatusModal("Error Creating Task", "<p>Could not retrieve the details of the last sent sensor value. Please try sending the value again before creating a task.</p>", false);
+                return;
+            }
+
+            document.getElementById('task-url').value = lastSentData.url;
+            document.getElementById('task-block-id').value = lastSentData.block_id;
+            document.getElementById('task-prefix').value = lastSentData.prefix;
+            document.getElementById('task-node-id').value = lastSentData.node_id;
+            document.getElementById('task-channel').value = lastSentData.channel || 0;
+
+            document.getElementById('summary-url').textContent = truncateText(lastSentData.url, 50);
+            document.getElementById('summary-block-id').textContent = lastSentData.block_id;
+            document.getElementById('summary-prefix').textContent = lastSentData.prefix;
+            document.getElementById('summary-node-id').textContent = lastSentData.node_id;
+            document.getElementById('summary-channel').textContent = lastSentData.channel || 0;
+
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const pad = (num) => String(num).padStart(2, '0');
+            const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`;
+            document.getElementById('task-datetime-once').value = tomorrowStr;
+
+            const currentTime = new Date().toTimeString().slice(0, 5);
+            document.getElementById('task-datetime-daily').value = currentTime;
+            document.getElementById('task-datetime-weekly').value = currentTime;
+            document.getElementById('task-day-weekly').value = "1"; // Default to Monday
+
+            showError('#task-error', '', false);
+            showSuccess('#task-success', '', false);
+            showModal('task-setup-modal');
+            updateScheduleInputs(); // Also calculates initial crontab
+        }
+
+        function hideTaskModal() {
+            hideModal('task-setup-modal');
+        }
+
+        async function fetchBlocks() {
+            const urlInput = document.getElementById('website-url');
+            websiteUrl = urlInput.value.trim();
+            const searchInput = document.getElementById('block-search-input');
+
+            if (!websiteUrl) {
+                showError('#url-error', 'Please enter a valid URL.', true);
+                return;
+            }
+
+            try {
+                new URL(websiteUrl); // Basic URL validation
+            } catch (_) {
+                showError('#url-error', 'Invalid URL format. Please include http:// or https://', true);
+                return;
+            }
+
+            showError('#url-error', '', false);
+            showLoading('#loading-blocks', true, 'Fetching page content...');
+            document.getElementById('fetch-url-btn').disabled = true;
+            if(searchInput) searchInput.value = ''; // Clear previous search
+
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: websiteUrl })
+                });
+
+                if (!response.ok) {
+                    let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                    try { const errData = await response.json(); errorMsg = errData.detail || errorMsg; } catch(e){}
+                    throw new Error(errorMsg);
+                }
+
+                const data = await response.json();
+                extractedBlocks = (data.blocks || []).map((block, index) => ({
+                    ...block,
+                    originalIndex: block.originalIndex ?? index // Ensure originalIndex is set
+                }));
+
+                // Filter out empty or whitespace-only blocks
+                extractedBlocks = extractedBlocks.filter(block => block && block.text && String(block.text).trim() !== '');
+
+                filteredBlocks = [...extractedBlocks]; // Initially, filtered is all extracted
+                currentPage = 1;
+                selectedBlockOriginalIndex = null; // Reset selection
+
+                if (filteredBlocks.length === 0) {
+                    showError('#url-error', 'No usable text content blocks found on this page. Check the URL or the page structure.', true);
+                    document.getElementById('blocks-container').innerHTML = '<div class="no-blocks">No usable text content found.</div>';
+                    document.getElementById('blocks-pagination').style.display = 'none';
+                    return; // Keep loading false, button enabled in finally
+                }
+
+                renderBlocks();
+                showStep('step-select-block');
+
+            } catch (error) {
+                console.error('Error fetching blocks:', error);
+                showError('#url-error', `Failed to fetch content: ${error.message}`, true);
+                extractedBlocks = [];
+                filteredBlocks = [];
+                document.getElementById('blocks-container').innerHTML = ''; // Clear blocks
+                document.getElementById('blocks-pagination').style.display = 'none'; // Hide pagination
+            } finally {
+                showLoading('#loading-blocks', false);
+                document.getElementById('fetch-url-btn').disabled = false;
+            }
+        }
+
+        function filterAndRenderBlocks() {
+            const searchInput = document.getElementById('block-search-input');
+            const searchTerm = searchInput.value.trim().toLowerCase();
+
+            filteredBlocks = extractedBlocks.filter(block =>
+                block.text && block.text.toLowerCase().includes(searchTerm)
+            );
+
+            // If the currently selected block is filtered out, reset selection
+            const selectedBlockStillVisible = filteredBlocks.some(
+                block => block.originalIndex === selectedBlockOriginalIndex
+            );
+            if (!selectedBlockStillVisible) {
+                selectedBlockOriginalIndex = null;
+                // No need to clear preview here, selection happens on click
+            }
+
+            currentPage = 1; // Reset to first page on new filter
+            renderBlocks();
+        }
+
+        async function sendToNode() {
+            const prefix = document.getElementById('prefix').value.trim();
+            const nodeId = document.getElementById('node-id').value.trim();
+            const channelInput = document.getElementById('channel');
+            const channel = parseInt(channelInput.value) || 0;
+
+            let hasError = false;
+            showError('#send-error', '', false); // Clear previous errors
+
+            if (!prefix) { showError('#send-error', (document.getElementById('send-error').innerHTML ? document.getElementById('send-error').innerHTML + '<br>' : '') + 'Please enter a sensor label (prefix).', true); hasError = true; }
+            if (!nodeId) { showError('#send-error', (document.getElementById('send-error').innerHTML ? document.getElementById('send-error').innerHTML + '<br>' : '') + 'Please enter a destination node ID.', true); hasError = true; }
+            else if (!nodeId.startsWith('!') || nodeId.length <= 1) { showError('#send-error', (document.getElementById('send-error').innerHTML ? document.getElementById('send-error').innerHTML + '<br>' : '') + 'Invalid Node ID format (must start with ! and have content).', true); hasError = true; }
+            if (selectedBlockOriginalIndex === null) { showError('#send-error', (document.getElementById('send-error').innerHTML ? document.getElementById('send-error').innerHTML + '<br>' : '') + 'No sensor value block selected.', true); hasError = true; }
+            if (channel < 0 || channel > 7 || isNaN(channel)) { showError('#send-error', (document.getElementById('send-error').innerHTML ? document.getElementById('send-error').innerHTML + '<br>' : '') + 'Channel must be between 0 and 7.', true); channelInput.value = 0; hasError = true; }
+            if (hasError) return;
+
+
+            const selectedBlockData = extractedBlocks.find(b => b.originalIndex === selectedBlockOriginalIndex);
+            if (!selectedBlockData) {
+                showError('#send-error', 'Could not find data for the selected block ID.', true);
+                return;
+            }
+
+            const requestData = {
+                url: websiteUrl, // The URL from which blocks were fetched
+                block_id: selectedBlockOriginalIndex, // The original index of the selected block
+                prefix: prefix,
+                node_id: nodeId,
+                channel: channel
+            };
+
+            const sendButton = document.getElementById('send-to-node');
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+            try {
+                const response = await fetch('/monitor/website', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    let errorMsg = `Error ${response.status}: ${response.statusText}`;
+                    try { const errData = await response.json(); errorMsg = errData.detail || errorMsg; } catch(e){}
+                    throw new Error(errorMsg);
+                }
+
+                const data = await response.json();
+                showSuccess('#send-success', '', false); // Clear local success/error messages on step 3
+
+                lastSentData = { ...requestData }; // Store for task creation
+
+                showStatusModal('Send Successful', `
+                    <div class="success-message" style="margin:0; border: none; background: none; padding: 0; text-align: left;">
+                        <p><i class="fas fa-check-circle"></i> Sensor value sent successfully!</p>
+                        <p><strong>Destination:</strong> ${sanitizeHTML(nodeId)}</p>
+                        <p><strong>Channel:</strong> ${channel}</p>
+                        <p><strong>Message Sent:</strong></p>
+                        <pre style="background: #2a2a2a; padding: 0.5em; border-radius: 4px; font-size: 0.9em; color: #f1f1f1; word-break: break-all;">${sanitizeHTML(data.message || 'Value sent')}</pre>
+                    </div>
+                `, true); // Show create task button in modal
+
+            } catch (error) {
+                console.error('Error sending to node:', error);
+                showError('#send-error', `Failed to send message: ${error.message}`, true);
+            } finally {
+                sendButton.disabled = false;
+                sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Send to Node';
+            }
+        }
+
+        function calculateCrontabString() {
+            const scheduleType = document.querySelector('input[name="scheduleType"]:checked')?.value;
+            let minute = '*'; let hour = '*'; let dayOfMonth = '*'; let month = '*'; let dayOfWeek = '*';
+            let isValid = true;
+
+            try {
+                switch(scheduleType) {
+                    case 'once':
+                        const onceDateTime = document.getElementById('task-datetime-once').value;
+                        if (onceDateTime) {
+                            const date = new Date(onceDateTime);
+                            if (!isNaN(date.getTime())) {
+                                if (date < new Date()) { // Check if date is in the past
+                                     console.warn("Cannot schedule 'Run Once' task in the past.");
+                                     isValid = false; break;
+                                }
+                                minute = date.getMinutes(); hour = date.getHours();
+                                dayOfMonth = date.getDate(); month = date.getMonth() + 1; // JS month is 0-indexed
+                                dayOfWeek = '*'; // For specific date, dayOfWeek is not restrictive by default in cron
+                            } else { isValid = false; console.warn("Invalid 'Run Once' date/time format"); }
+                        } else { isValid = false; console.warn("'Run Once' date/time not set"); }
+                        break;
+
+                    case 'daily':
+                        const dailyTime = document.getElementById('task-datetime-daily').value;
+                        if (dailyTime) {
+                            const [h, m] = dailyTime.split(':');
+                            minute = parseInt(m, 10); hour = parseInt(h, 10);
+                            if (isNaN(minute) || isNaN(hour)) { isValid = false; console.warn("Invalid 'Daily' time"); }
+                            else { dayOfMonth = '*'; month = '*'; dayOfWeek = '*'; }
+                        } else { isValid = false; console.warn("'Daily' time not set"); }
+                        break;
+
+                    case 'weekly':
+                        const weeklyTime = document.getElementById('task-datetime-weekly').value;
+                        const weeklyDay = document.getElementById('task-day-weekly').value;
+                        if (weeklyTime && weeklyDay !== null && weeklyDay !== "") {
+                            const [h, m] = weeklyTime.split(':');
+                            minute = parseInt(m, 10); hour = parseInt(h, 10); dayOfWeek = parseInt(weeklyDay, 10);
+                            if (isNaN(minute) || isNaN(hour) || isNaN(dayOfWeek)) { isValid = false; console.warn("Invalid 'Weekly' time or day"); }
+                            else { dayOfMonth = '*'; month = '*'; }
+                        } else { isValid = false; console.warn("'Weekly' time or day not set"); }
+                        break;
+                    default: isValid = false; console.warn("No schedule type selected");
+                }
+            } catch (e) { console.error("Error calculating cron string:", e); isValid = false; }
+
+            if (!isValid) return null;
+            return `${minute} ${hour} ${dayOfMonth} ${month} ${dayOfWeek}`;
+        }
+
+        function displayCrontab() {
+            const cronString = calculateCrontabString();
+            const previewElement = document.getElementById('calculated-crontab');
+            const scheduleType = document.querySelector('input[name="scheduleType"]:checked')?.value;
+
+            if (previewElement) {
+                if (cronString) {
+                    previewElement.textContent = cronString;
+                    previewElement.classList.remove('na');
+                    // Additional check for 'once' if it's in the past
+                    if (scheduleType === 'once') {
+                        const onceDateTime = document.getElementById('task-datetime-once').value;
+                        if (onceDateTime) {
+                           const date = new Date(onceDateTime);
+                           if (date < new Date()) {
+                               previewElement.innerHTML = '<span class="na">Cannot schedule in the past</span>';
+                               previewElement.classList.add('na');
+                               return null; // Indicate invalid cron for past 'once'
+                           }
+                        }
+                    }
+                } else {
+                    previewElement.innerHTML = '<span class="na">Requires valid schedule options...</span>';
+                    previewElement.classList.add('na');
+                }
+            }
+            return cronString; // Return the string or null
+        }
+
+
+        function updateScheduleInputs() {
+            const selectedType = document.querySelector('input[name="scheduleType"]:checked')?.value;
+            const scheduleInputs = {
+                once: document.getElementById('schedule-input-once'),
+                daily: document.getElementById('schedule-input-daily'),
+                weekly: document.getElementById('schedule-input-weekly')
+            };
+
+            Object.values(scheduleInputs).forEach(div => {
+                if (div) div.classList.add('hidden');
+            });
+
+            // Set required attributes based on selected type
+            document.getElementById('task-datetime-once').required = (selectedType === 'once');
+            document.getElementById('task-datetime-daily').required = (selectedType === 'daily');
+            document.getElementById('task-datetime-weekly').required = (selectedType === 'weekly');
+            document.getElementById('task-day-weekly').required = (selectedType === 'weekly');
+
+
+            if (selectedType && scheduleInputs[selectedType]) {
+                scheduleInputs[selectedType].classList.remove('hidden');
+            }
+            displayCrontab(); // Update crontab preview
+        }
+
+
+        async function createScheduledTask(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            showError('#task-error', '', false); // Clear previous errors
+            showSuccess('#task-success', '', false); // Clear previous success messages
+            const saveButton = document.getElementById('save-task-btn');
+
+            const url = document.getElementById('task-url').value;
+            const blockId = parseInt(document.getElementById('task-block-id').value); // This is originalIndex
+            const prefix = document.getElementById('task-prefix').value;
+            const nodeId = document.getElementById('task-node-id').value;
+            const channel = parseInt(document.getElementById('task-channel').value) || 0;
+
+            const cronString = displayCrontab(); // Recalculate and get the cron string
+            if (!cronString) { // This also covers the 'once in past' case from displayCrontab
+                 showError('#task-error', "Invalid schedule settings. Please check times/dates (e.g., 'Run Once' cannot be in the past).", true);
+                 return;
+            }
+             if (!nodeId || !nodeId.startsWith('!') || nodeId.length <= 1) {
+                 showError('#task-error', 'Invalid Destination Node ID format (must start with !).', true); return;
+             }
+             if (!prefix) {
+                 showError('#task-error', 'Please ensure the Sensor Label (Prefix) is not empty.', true); return;
+             }
+
+
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+            try {
+                const taskDescription = `Web Sensor: '${prefix}' for ${nodeId} from ${truncateText(url, 30)}`;
+                const taskData = {
+                    nodeId: nodeId, // For backend routing/association if needed
+                    taskType: "website_monitor",
+                    actionPayload: JSON.stringify({ // All params the task runner needs
+                        url: url,
+                        block_id: blockId, // originalIndex
+                        prefix: prefix,
+                        channel: channel,
+                        node_id: nodeId  // Destination node for the message
+                    }),
+                    cronString: cronString,
+                    taskDescription: taskDescription
+                };
+
+                const response = await fetch('/api/tasks/', { // Standard task API endpoint
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(taskData)
+                });
+
+                if (!response.ok) {
+                    let errorMessage = `Error ${response.status}`;
+                    try { const errorData = await response.json(); errorMessage = errorData.detail || errorMessage; } catch (e) { /* ignore parsing error */ }
+                    throw new Error(errorMessage);
+                }
+
+                const data = await response.json(); // Expecting new task details or confirmation
+                showSuccess('#task-success', "Task created successfully! Monitoring will run on schedule.", true);
+
+                setTimeout(() => {
+                    hideTaskModal();
+                    showSuccess('#task-success', '', false); // Clear success message after modal closes
+                }, 2500);
+
+            } catch (error) {
+                console.error('Error creating task:', error);
+                showError('#task-error', `Failed to create task: ${error.message}`, true);
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerHTML = 'Create Task';
+            }
+        }
+
+
+        function renderBlocks() {
+            const container = document.getElementById('blocks-container');
+            const paginationElement = document.getElementById('blocks-pagination');
+            const totalBlocks = filteredBlocks.length;
+            const totalPages = Math.ceil(totalBlocks / blocksPerPage);
+
+            paginationElement.style.display = totalPages > 1 ? 'flex' : 'none';
+
+            // Ensure currentPage is within valid range
+            if (currentPage > totalPages) currentPage = totalPages || 1;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * blocksPerPage;
+            const endIndex = Math.min(startIndex + blocksPerPage, totalBlocks); // Corrected endIndex calculation
+
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+            document.getElementById('prev-page').disabled = currentPage <= 1;
+            document.getElementById('next-page').disabled = currentPage >= totalPages;
+
+            container.innerHTML = ''; // Clear previous blocks
+
+            if (totalBlocks === 0) {
+                const searchInput = document.getElementById('block-search-input');
+                if (searchInput && searchInput.value.trim() !== '') {
+                     container.innerHTML = '<div class="no-blocks">No blocks match your search criteria.</div>';
+                } else {
+                     container.innerHTML = '<div class="no-blocks">No usable text content found on this page.</div>';
+                }
+                return;
+            }
+
+
+            const fragment = document.createDocumentFragment();
+            for (let i = startIndex; i < endIndex; i++) {
+                const block = filteredBlocks[i];
+                const blockOriginalIndex = block.originalIndex; // Use the preserved original index
+                const isSelected = selectedBlockOriginalIndex === blockOriginalIndex;
+
+                const blockCard = document.createElement('div');
+                blockCard.className = `block-card ${isSelected ? 'selected' : ''}`;
+                blockCard.dataset.originalIndex = blockOriginalIndex; // Store original index
+
+                blockCard.innerHTML = `
+                    <div class="block-header">
+                        <div class="block-type">
+                            <i class="fas fa-${getElementIcon(block.element_type)}"></i>
+                            ${sanitizeHTML(block.element_type || 'text')}
+                        </div>
+                        <div class="block-id">Block Index: ${blockOriginalIndex}</div>
+                    </div>
+                    <div class="block-content">${sanitizeHTML(truncateText(block.text, 200))}</div>
+                    <div class="block-meta">
+                        ${block.element_id ? `<div class="block-meta-item"><strong>Element ID:</strong> ${sanitizeHTML(block.element_id)}</div>` : ''}
+                        ${block.element_class ? `<div class="block-meta-item"><strong>Class:</strong> ${sanitizeHTML(block.element_class)}</div>` : ''}
+                        <div class="block-meta-item"><strong>Length:</strong> ${block.text?.length || 0} chars</div>
+                    </div>
+                    <div class="block-actions">
+                        <button class="btn primary select-block"><i class="fas fa-check-circle"></i> Use This Value</button>
+                    </div>
+                `;
+                fragment.appendChild(blockCard);
+
+                blockCard.querySelector('.select-block').addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent card click if button is clicked
+                    selectBlock(blockOriginalIndex);
+                });
+                blockCard.addEventListener('click', () => { // Allow clicking anywhere on card to select
+                    selectBlock(blockOriginalIndex);
+                });
+            }
+            container.appendChild(fragment);
+        }
+
+        function getElementIcon(elementType) {
+            if (!elementType) return 'align-left';
+            const lowerType = elementType.toLowerCase();
+            const iconMap = {
+                'div': 'square', 'p': 'paragraph', 'span': 'quote-left',
+                'h1': 'heading', 'h2': 'heading', 'h3': 'heading', 'h4': 'heading', 'h5': 'heading', 'h6': 'heading',
+                'article': 'newspaper', 'section': 'object-group', 'main': 'file-alt', // changed section icon
+                'aside': 'sticky-note', 'header': 'sitemap', 'footer': 'shoe-prints', // changed header icon
+                'li': 'list-ul', 'td': 'table-cells', 'th': 'table-cells-large',
+                'a': 'link', 'blockquote': 'quote-right', 'pre': 'code', 'code': 'code',
+                'button': 'mouse-pointer', 'label': 'tag', 'strong': 'bold', 'b': 'bold',
+                'em': 'italic', 'i': 'italic', 'nav': 'bars'
+            };
+            return iconMap[lowerType] || 'align-left'; // Default icon
+        }
+
+
+        function truncateText(text, maxLength) {
+            if (!text) return '';
+            const strText = String(text);
+            if (strText.length <= maxLength) return strText;
+            return strText.substring(0, maxLength) + '...';
+        }
+
+        function selectBlock(originalIndex) {
+            selectedBlockOriginalIndex = originalIndex;
+
+            // Update visual selection on cards
+            document.querySelectorAll('.block-card').forEach(card => {
+                card.classList.toggle('selected', parseInt(card.dataset.originalIndex) === originalIndex);
+            });
+
+            const blockData = extractedBlocks.find(b => b.originalIndex === originalIndex);
+
+            if (blockData && blockData.text !== undefined) {
+                const previewElement = document.getElementById('selected-content');
+                previewElement.textContent = blockData.text; // Show full text in preview
+                document.getElementById('selected-block-id').textContent = originalIndex;
+
+                showError('#send-error', '', false); // Clear errors from step 3
+                showSuccess('#send-success', '', false); // Clear success messages from step 3
+
+                showStep('step-send');
+            } else {
+                console.error("Failed to get block data for preview for original index:", originalIndex);
+                // This error should ideally be shown in the UI context of step 2 if it occurs
+                showError('#url-error', 'Could not retrieve the selected block content for preview. Please try fetching again.', true); // Show error on step 1's error area
+                selectedBlockOriginalIndex = null; // Reset selection
+                renderBlocks(); // Re-render to remove 'selected' state if error occurs
+            }
+        }
+
+
+        function initializeSensorMonitor() {
+            document.getElementById('fetch-url-btn').addEventListener('click', fetchBlocks);
+            document.getElementById('website-url').addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') fetchBlocks();
+            });
+
+            const searchInput = document.getElementById('block-search-input');
+            if(searchInput) searchInput.addEventListener('input', filterAndRenderBlocks);
+
+            document.getElementById('prev-page').addEventListener('click', function() {
+                if (currentPage > 1) { currentPage--; renderBlocks(); }
+            });
+            document.getElementById('next-page').addEventListener('click', function() {
+                const totalPages = Math.ceil(filteredBlocks.length / blocksPerPage);
+                if (currentPage < totalPages) { currentPage++; renderBlocks(); }
+            });
+
+            document.getElementById('back-to-url').addEventListener('click', function() {
+                showStep('step-url');
+                // Optionally clear blocks and selection
+                extractedBlocks = []; filteredBlocks = []; selectedBlockOriginalIndex = null;
+                document.getElementById('blocks-container').innerHTML = '';
+                document.getElementById('blocks-pagination').style.display = 'none';
+                const searchInput = document.getElementById('block-search-input');
+                if(searchInput) searchInput.value = '';
+                showError('#url-error', '', false); // Clear URL errors
+            });
+
+            document.getElementById('back-to-blocks').addEventListener('click', function() {
+                showStep('step-select-block');
+                showError('#send-error', '', false); // Clear send errors
+                showSuccess('#send-success', '', false); // Clear send success
+            });
+
+            document.getElementById('send-to-node').addEventListener('click', sendToNode);
+
+            // Schedule task modal listeners
+            const scheduleTypeRadios = document.querySelectorAll('input[name="scheduleType"]');
+            scheduleTypeRadios.forEach(radio => radio.addEventListener('change', updateScheduleInputs));
+            // Listen to changes on all date/time inputs to update crontab
+            ['task-datetime-once', 'task-datetime-daily', 'task-day-weekly', 'task-datetime-weekly'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', displayCrontab);
+            });
+            document.getElementById('task-form').addEventListener('submit', createScheduledTask);
+
+
+            updateStatus("Ready", "Ready to fetch sensor data");
+            showStep('step-url'); // Start at the first step
+            updateScheduleInputs(); // Initialize schedule inputs visibility and crontab
+        }
+
+    </script>
+
+    <div id="md-update-modal">
+    <div class="md-modal-content">
+        <span class="md-modal-close" id="md-modal-close-btn">&times;</span>
+        <h3><i class="fas fa-arrow-circle-up"></i> Update Available</h3>
+        <p>A newer version of the Mesh Dashboard is available!</p>
+        <p>You can download the latest version from:</p>
+        <p style="text-align: center; margin: 15px 0;">
+            <a href="https://meshdash.co.uk/" target="_blank">https://meshdash.co.uk/</a>
+        </p>
+        <div class="md-modal-note">
+            <i class="fas fa-info-circle"></i> Please check the documentation for update instructions.
+        </div>
+    </div>
+</div>
+
+<div class="footer-container">
+    <div class="footer-left">
+        <div class="footer-item">
+            <i class="fas fa-cubes"></i>
+            <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+            <strong>Rusjp</strong>
+        </div>
+        <div class="footer-divider">|</div>
+        <div class="footer-item">
+            <span>Version:</span>
+            <strong id="md-installed-version">Loading...</strong>
+        </div>
+        <div id="md-update-container" style="display: none;">
+            <div class="footer-divider">|</div>
+            <div class="footer-item">
+                <i class="fas fa-arrow-circle-up"></i>
+                <span>Update Available:</span>
+                <strong id="md-latest-version"></strong>
+                <button id="md-update-btn">Info</button>
+                <button class="debug-button" id="debug-button" onclick="toggleDebugPanel()">
+                    <i class="fas fa-bug"></i> Debug
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Footer script (original, unchanged)
+(function() {
+    const LOCAL_CONFIG_API_URL = '/api/system/config/';
+    const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version';
+
+    const instVerSpan = document.getElementById('md-installed-version');
+    const updateContainer = document.getElementById('md-update-container');
+    const latestVersionSpan = document.getElementById('md-latest-version');
+    const updateModal = document.getElementById('md-update-modal');
+    const updateBtn = document.getElementById('md-update-btn');
+    const modalCloseBtn = document.getElementById('md-modal-close-btn');
+
+    async function fetchLocalConfig() {
+        console.debug(`Workspaceing local config from: ${LOCAL_CONFIG_API_URL}`);
+        try {
+            const response = await fetch(LOCAL_CONFIG_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching local config: ${response.status} ${response.statusText}`);
+                let errorBody = 'Could not read error body.';
+                try { errorBody = await response.text(); } catch(e){}
+                console.error("Local config error body:", errorBody);
+                return null;
+            }
+            const configData = await response.json();
+            console.debug("Received local config data:", configData);
+            return configData;
+        } catch (error) {
+            console.error('Failed to fetch or parse local configuration:', error);
+            return null;
+        }
+    }
+
+    async function fetchExternalVersion() {
+        console.debug(`Workspaceing latest version from: ${EXTERNAL_VERSION_API_URL}`);
+        try {
+            const response = await fetch(EXTERNAL_VERSION_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                let errorBody = 'Could not read error body.';
+                try { errorBody = await response.text(); } catch(e){}
+                console.error("External version error body:", errorBody);
+                return null;
+            }
+            const versionData = await response.json();
+            console.debug("Received external version data:", versionData);
+            return versionData;
+        } catch (error) {
+            console.error('Error fetching or parsing external version:', error);
+            return null;
+        }
+    }
+
+    function compareVersions(v1, v2) {
+        if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+            console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+            return 0;
+        }
+        try {
+            const p1 = v1.substring(1).split('.').map(Number);
+            const p2 = v2.substring(1).split('.').map(Number);
+            if (p1.some(isNaN) || p2.some(isNaN)) {
+                console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                return 0;
+            }
+            const len = Math.max(p1.length, p2.length);
+            for (let i = 0; i < len; i++) {
+                const n1 = p1[i] || 0;
+                const n2 = p2[i] || 0;
+                if (n1 < n2) return -1;
+                if (n1 > n2) return 1;
+            }
+            return 0;
+        } catch (e) {
+            console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+            return 0;
+        }
+    }
+
+    async function initFooter() {
+        if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+            console.error('Footer initialization failed: missing essential display elements (installed version, update container, or latest version).');
+            if (instVerSpan) instVerSpan.textContent = 'Error!';
+            return;
+        }
+        if (updateBtn && (!updateModal || !modalCloseBtn)) {
+            console.warn('Modal elements (md-update-modal, md-modal-close-btn) seem missing. Update info button might not work.');
+        }
+
+        let installedVersion = null;
+        const localConfig = await fetchLocalConfig();
+        if (localConfig && localConfig.INSTALLED_VERSION) {
+            installedVersion = localConfig.INSTALLED_VERSION.trim();
+            instVerSpan.textContent = installedVersion;
+            instVerSpan.style.color = '';
+        } else {
+            console.error("Could not retrieve installed version from local config API.");
+            instVerSpan.textContent = 'Error!';
+            instVerSpan.style.color = 'red';
+            return;
+        }
+
+        const externalData = await fetchExternalVersion();
+        if (externalData && externalData.version && typeof externalData.version === 'string') {
+            const latestAvailableVersion = externalData.version.trim();
+            const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+            console.log(`Version Comparison: Installed='${installedVersion}', Latest='${latestAvailableVersion}', Result=${comparisonResult}`);
+
+            if (comparisonResult < 0) {
+                console.log("Update available!");
+                latestVersionSpan.textContent = latestAvailableVersion;
+                updateContainer.style.display = 'flex';
+                if (updateBtn) updateBtn.style.display = 'inline-block';
+            } else { // Handles result === 0 (up to date) or result > 0 (local is newer)
+                console.log(comparisonResult === 0 ? "Version is up to date." : "Installed version is newer or equal.");
+                updateContainer.style.display = 'none';
+            }
+        } else {
+            console.warn("Could not retrieve latest version from external API. Update check skipped.");
+            updateContainer.style.display = 'none';
+        }
+
+        if (updateBtn && updateModal && modalCloseBtn) {
+            updateBtn.addEventListener('click', () => { updateModal.style.display = 'block'; });
+            modalCloseBtn.addEventListener('click', () => { updateModal.style.display = 'none'; });
+            window.addEventListener('click', (e) => { if (e.target === updateModal) updateModal.style.display = 'none'; });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && updateModal.style.display === 'block') updateModal.style.display = 'none'; });
+        } else {
+            if(updateBtn) updateBtn.style.display = 'none';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', initFooter);
+})();
+</script>
+
+</body>
+</html>

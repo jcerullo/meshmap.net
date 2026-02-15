@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic Chat</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+
+<style>
+
+
+body {
+    margin: 0; display: flex; flex-direction: column; min-height: 100vh;
+}
+html, body { height: 100%; overflow: hidden; }
+
+.dashboard { padding: 1rem; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; width: 100%; box-sizing: border-box; }
+#chat-card {
+    background-color: var(--card-background);
+    border-radius: var(--radius, 12px);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    display: flex; flex-direction: column; overflow: hidden; flex-grow: 1; width: 100%;
+}
+#chat-card > .card-header {
+    padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color);
+    display: flex; align-items: center; gap: 0.75rem;
+    background-color: var(--header-background); flex-shrink: 0;
+}
+#chat-card > .card-header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; }
+.card-content { padding: 0; flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; }
+.hidden { display: none !important; }
+.card-header-controls { display: flex; align-items: center; gap: 0.75rem; margin-left: auto; }
+#channel-selector {
+    background-color: var(--input-background); color: var(--text-primary);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm, 8px);
+    padding: 0.3rem 0.6rem; font-size: 0.85rem; cursor: pointer;
+    transition: border-color 0.2s ease; margin-right: 0.5rem; max-width: 150px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 30px; line-height: 1.2;
+}
+#channel-selector:hover { border-color: var(--text-secondary, #a9b1d6); }
+#channel-selector:focus { outline: none; border-color: var(--primary-color, #4f87ff); box-shadow: var(--shadow-highlight); }
+#channel-selector:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.status-container { display: flex; align-items: center; gap: 6px; height: 30px; }
+.status-indicator { width: 10px; height: 10px; border-radius: 50%; background-color: var(--text-tertiary, #7a82a0); transition: background-color 0.3s ease; flex-shrink: 0; }
+.status-indicator.connected, .status-indicator.online { background-color: var(--success-color, var(--signal-excellent, #10b981)); }
+.status-indicator.connecting { background-color: var(--warning-color, var(--signal-fair, #f59e0b)); animation: pulse 1.5s infinite; }
+.status-indicator.disconnected, .status-indicator.error { background-color: var(--error-color, var(--signal-poor, #ef4444)); }
+.status-indicator.unknown { background-color: var(--text-tertiary, var(--signal-unknown, #7a82a0)); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+#status-text { font-size: 0.875rem; color: var(--text-secondary, #a9b1d6); white-space: nowrap; }
+#preferences-button { background: none; border: none; color: var(--text-secondary); cursor: pointer; transition: color 0.2s; font-size: 1rem; padding: 0.25rem; line-height: 1; height: 30px; display: flex; align-items: center; }
+#preferences-button:hover { color: var(--text-primary); }
+
+#chat-card-content { padding: 0.5rem; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+#error-message {
+    margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--error-color, #ef4444);
+    background-color: rgba(239, 68, 68, 0.1); 
+    padding: 0.5rem; border-radius: var(--radius-sm, 8px);
+    border: 1px solid rgba(239, 68, 68, 0.3); flex-shrink: 0;
+}
+#message-container {
+    background-color: var(--background-color); 
+    flex-grow: 1; overflow-y: auto; border-radius: var(--radius-sm, 8px);
+    padding: 1rem; border: 1px solid var(--border-color);
+    scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;
+}
+#message-container::-webkit-scrollbar { width: 8px; }
+#message-container::-webkit-scrollbar-track { background: transparent; }
+#message-container::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 10px; border: 2px solid var(--background-color); }
+#message-container::-webkit-scrollbar-thumb:hover { background-color: var(--text-tertiary); }
+
+.message-item {
+    max-width: 90%; align-self: flex-start; margin-right: auto; margin-left: 0.5rem; position: relative;
+    background-color: var(--card-background); 
+    display: flex; align-items: flex-start; gap: 1rem;
+    padding: 1rem 1.25rem; border: 1px solid var(--border-color);
+    font-size: 0.9rem; transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.3s ease;
+    margin-bottom: 0.5rem; border-radius: var(--radius, 12px); color: var(--text-primary);
+}
+.message-item:last-child { margin-bottom: 0; }
+.message-item.current-user {
+    margin-left: auto; margin-right: 0.5rem; align-self: flex-end;
+
+    background-color: rgba(var(--primary-rgb, 79, 135, 255), 0.1); 
+    border-color: var(--primary-color, #4f87ff);
+}
+
+.message-item.current-user .sender-name { color: var(--primary-color, #4f87ff); }
+.message-item.current-user .message-meta-item { background-color: rgba(var(--primary-rgb, 79, 135, 255), 0.2); color: var(--text-secondary); }
+.message-item.current-user .message-time { color: var(--text-tertiary); }
+.node-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; flex-shrink: 0; font-size: 1rem; text-align: center; line-height: 40px; overflow: hidden; }
+.message-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.message-header { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.sender-name { font-weight: 600; font-size: 0.95rem; margin-right: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+.message-time { font-size: 0.75rem; color: var(--text-tertiary); white-space: nowrap; margin-left: auto; flex-shrink: 0; }
+.message-text { word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }
+.message-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
+.message-meta-item { font-size: 0.7rem; background-color: rgba(var(--text-rgb-primary, 248,249,255), 0.05);  padding: 2px 6px; border-radius: var(--radius-sm, 8px); display: inline-flex; align-items: center; gap: 4px; color: var(--text-tertiary); line-height: 1.2; }
+.message-meta-item i.fa-fw { width: 1.25em; text-align: center; }
+#message-container.compact-meta .message-meta-detail { display: none; }
+
+.signal-bars { display: flex; align-items: flex-end; height: 10px; gap: 1px; }
+.signal-bars div { width: 3px; background-color: currentColor; border-radius: 1px; }
+.signal-bars.excellent div:nth-child(-n+4) { background-color: var(--signal-excellent, #10b981); }
+.signal-bars.good div:nth-child(-n+3) { background-color: var(--signal-good, #4f87ff); }
+.signal-bars.fair div:nth-child(-n+2) { background-color: var(--signal-fair, #f59e0b); }
+.signal-bars.poor div:nth-child(-n+1) { background-color: var(--signal-poor, #ef4444); }
+.signal-bars div:nth-child(1) { height: 40%; } .signal-bars div:nth-child(2) { height: 60%; } .signal-bars div:nth-child(3) { height: 80%; } .signal-bars div:nth-child(4) { height: 100%; }
+.signal-bars.unknown div { background-color: var(--signal-unknown, #7a82a0); height: 20%;}
+
+.battery-indicator .battery-icon { margin-right: 2px; font-size: 1em; }
+.battery-indicator .full { color: var(--battery-full, #10b981); }
+.battery-indicator .good { color: var(--battery-good, #4f87ff); }
+.battery-indicator .fair { color: var(--battery-fair, #f59e0b); }
+.battery-indicator .low { color: var(--battery-low, #ef4444); }
+.battery-indicator .unknown { color: var(--battery-unknown, #7a82a0); }
+
+.system-message {
+    margin: 0.75rem 0; padding: 0.5rem 1rem; text-align: center; font-size: 0.8rem;
+    color: var(--text-secondary); font-style: italic; border-radius: var(--radius-sm, 8px);
+    background-color: rgba(48, 53, 74, 0.5); 
+    border: 1px dashed var(--border-color); flex-shrink: 0;
+}
+
+.chat-input-area {
+    padding: 0.75rem; border-top: 1px solid var(--border-color);
+    display: flex; align-items: center; gap: 0.75rem;
+    background-color: var(--header-background); flex-shrink: 0;
+}
+.input-wrapper { position: relative; flex-grow: 1; }
+#message-input {
+    background-color: var(--input-background); border: 1px solid var(--border-color);
+    color: var(--text-primary); border-radius: var(--radius-sm, 8px);
+    padding: 0.625rem 3.5rem 0.625rem 0.75rem;
+    transition: var(--transition-fast, all 0.2s ease-out);
+    width: 100%; font-size: 0.9rem; line-height: 1.4; box-shadow: var(--shadow-inner);
+}
+#message-input::placeholder { color: var(--text-tertiary); }
+#message-input:focus {
+    border-color: var(--primary-color); box-shadow: var(--shadow-highlight), var(--shadow-inner);
+    outline: none; background-color: var(--card-background); 
+}
+#message-input:disabled { background-color: var(--border-color); opacity: 0.6; cursor: not-allowed; box-shadow: var(--shadow-inner); }
+#char-count { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: var(--text-tertiary); pointer-events: none; transition: color 0.2s ease; }
+#char-count.warning { color: var(--warning-color, #f59e0b); }
+#char-count.danger { color: var(--error-color, #ef4444); }
+
+#send-button { 
+    background-color: var(--primary-color); color: white; 
+    border: 1px solid var(--primary-color); 
+    border-radius: var(--radius-sm, 8px);
+    transition: var(--transition-fast, all 0.2s ease-out);
+    padding: 0.6rem 1.2rem;  font-weight: 500; font-size: 0.9rem; 
+    display: flex; align-items: center; gap: 0.5rem;  cursor: pointer; line-height: 1.2; 
+}
+#send-button:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px);  background-color: #669aff; border-color: #669aff; box-shadow: 0 4px 8px rgba(79, 135, 255, 0.3);  }
+#send-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; filter: none; background-color: rgba(74, 74, 74, 0.3) !important; color: var(--text-tertiary) !important; border-color: transparent !important; box-shadow: none !important; }
+
+.tooltip { position: relative; display: inline-flex; align-items: center; height: 30px; }
+.tooltip .tooltip-text {
+    visibility: hidden; width: auto; min-width: 100px;
+    background-color: var(--card-background); color: var(--text-primary);
+    text-align: center; border-radius: var(--radius-sm, 8px);
+    padding: 5px 8px; position: absolute; z-index: 10; bottom: 125%; left: 50%;
+    transform: translateX(-50%); opacity: 0; transition: opacity 0.3s;
+    font-size: 0.75rem; white-space: nowrap; box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+}
+.tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+.historical-message { opacity: 0.8; }
+
+#preferences-modal .modal-body .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
+#preferences-modal .modal-body .setting-item:last-child { margin-bottom: 0; border-bottom: none; }
+#preferences-modal .modal-body .setting-item label { font-size: 0.9rem; color: var(--text-secondary); }
+
+.toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--input-background); transition: .3s; border-radius: 24px; border: 1px solid var(--border-color); }
+.toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: var(--text-secondary); transition: .3s; border-radius: 50%; }
+input:checked + .toggle-slider { background-color: var(--primary-color); border-color: var(--primary-color); }
+input:focus + .toggle-slider { box-shadow: 0 0 1px var(--primary-color); }
+input:checked + .toggle-slider:before { transform: translateX(20px); background-color: var(--card-background); }
+
+@media (max-width: 640px) {
+    .dashboard { padding: 0.5rem; }
+    #chat-card > .card-header { flex-wrap: wrap; padding: 0.5rem 0.75rem; }
+    #chat-card > .card-header h2 { font-size: 1rem; width: 100%; margin-bottom: 0.5rem; }
+    .card-header-controls { margin-left: 0; width: 100%; justify-content: space-between; }
+    #channel-selector { flex-grow: 1; margin-right: 0.5rem; max-width: none; }
+    #send-button .send-text-label { display: none; }
+    #send-button { padding: 0.625rem;  }
+    .message-item { max-width: 95%; margin-left: 0.25rem; margin-right: 0.25rem; padding: 0.75rem 1rem; gap: 0.75rem;}
+    .node-avatar { width: 32px; height: 32px; font-size: 0.8rem; line-height: 32px;}
+    #message-container { padding: 0.5rem; }
+    .chat-input-area { padding: 0.5rem; gap: 0.5rem;}
+    #message-input { padding: 0.5rem 3rem 0.5rem 0.5rem; font-size: 0.85rem;}
+    .message-meta-item { font-size: 0.65rem; padding: 2px 5px; gap: 3px;}
+}
+</style>
+
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+
+    <div class="dashboard">
+        <div id="chat-card">
+            <div class="card-header">
+                <h2 id="chat-title"><i class="fas fa-comments"></i> Meshtastic Chat</h2>
+                <div class="card-header-controls">
+                    <select id="channel-selector" title="Select Channel" disabled>
+                        <option value="0">Loading...</option>
+                    </select>
+                    <span class="tooltip">
+                        <div class="status-container">
+                            <div id="status-indicator" class="status-indicator disconnected"></div>
+                            <span id="status-text">Initializing...</span>
+                        </div>
+                        <span class="tooltip-text">Connection status</span>
+                    </span>
+                    <button id="preferences-button" class="tooltip" aria-haspopup="dialog">
+                        <i class="fas fa-cog"></i>
+                        <span class="tooltip-text">Preferences</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="chat-card-content" class="card-content">
+                <div id="error-message" class="hidden"></div>
+                <div id="message-container"></div>
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <input type="text" id="message-input" placeholder="Type your message..."
+                           maxlength="230"
+                           disabled>
+                    <span id="char-count">0/230</span>
+                </div>
+                <button id="send-button" class="btn btn-primary" disabled> <i class="fas fa-paper-plane"></i>
+                    <span class="send-text-label">Send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="footer-placeholder"></div>
+
+    <div id="preferences-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="preferences-modal-title" tabindex="-1">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="preferences-modal-title"><i class="fas fa-sliders-h"></i> Preferences</h2>
+                <button id="modal-close-button" class="close-btn" aria-label="Close preferences">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label for="auto-scroll-toggle">Auto-scroll new messages</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="auto-scroll-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label for="meta-detail-toggle">Show Detailed Message Info</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="meta-detail-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const App = {
+            config: {
+                API_BASE_URL: '/api', SSE_URL: '/sse', PUBLIC_DESTINATION_ID: '^all',
+                SETTINGS_KEY: 'meshtasticChatPreferences', MESSAGE_CACHE_SIZE_LIMIT: 300, MAX_MESSAGE_LENGTH: 230,
+                UNKNOWN_USER_ID: 'unknown_user', DEFAULT_NODE_ID_HUE: 180, RETRY_SSE_TIMEOUT: 5000,
+                STATUS_TYPES: { CONNECTED: 'connected', ONLINE: 'online', CONNECTING: 'connecting', DISCONNECTED: 'disconnected', ERROR: 'error', UNKNOWN: 'unknown' },
+                SSE_EVENTS: { PACKET: 'packet', CONNECTION_STATUS: 'connection_status', ERROR: 'error', NODES: 'nodes', NODE_UPDATE: 'node_update', LOCAL_NODE_INFO: 'local_node_info' },
+                MESSAGE_TYPES: { MESSAGE: 'Message', TELEMETRY: 'Telemetry', POSITION: 'Position', USER_INFO: 'User Info' }
+            },
+            elements: {},
+            state: {
+                currentUserNodeId: null, eventSource: null, nodes: {}, messageCache: new Set(),
+                availableChannels: {}, selectedChannelIndex: 0, isInitialLoadComplete: false,
+                isHistoryLoadedForChannel: {}, activeModalElement: null, lastFocusedElement: null,
+                isLocalNodeInfoProcessing: false
+            },
+            settings: {
+                autoScroll: true,
+                showExtraMeta: true,
+                showEncryptedOnPrimary: false
+            },
+    
+            init() {
+                this.initElements(); this.loadSettings(); this.bindEventListeners();
+                this.ui.loadNavigation(); this.ui.loadFooter(); this.ui.checkSendLabelVisibility();
+                this.ui.clearMessages(); this.ui.displaySystemMessage("Initializing connection...");
+                this.sse.connect();
+            },
+            initElements() {
+                const ids = [
+                    'message-container', 'message-input', 'send-button', 'status-indicator',
+                    'status-text', 'error-message', 'char-count', 'preferences-button',
+                    'channel-selector', 'chat-title', 'nav-placeholder', 'footer-placeholder',
+                    'preferences-modal', 'modal-close-button', 'auto-scroll-toggle',
+                    'meta-detail-toggle', 'preferences-modal-title',
+                    'show-encrypted-toggle', 'show-encrypted-setting-item'
+                ];
+                ids.forEach(id => {
+                    const camelCaseId = id.replace(/-([a-z])/g, g => g[1].toUpperCase());
+                    this.elements[camelCaseId] = document.getElementById(id);
+                });
+                this.elements.sendTextLabel = document.querySelector('#send-button .send-text-label');
+                if (this.elements.preferencesModal) {
+                     this.elements.preferencesModalContent = this.elements.preferencesModal.querySelector('.modal-content');
+                }
+            },
+            loadSettings() {
+                try {
+                    const savedSettings = localStorage.getItem(this.config.SETTINGS_KEY);
+                    if (savedSettings) {
+                        const parsed = JSON.parse(savedSettings);
+                        if (typeof parsed.autoScroll === 'boolean') this.settings.autoScroll = parsed.autoScroll;
+                        if (typeof parsed.showExtraMeta === 'boolean') this.settings.showExtraMeta = parsed.showExtraMeta;
+                        if (typeof parsed.showEncryptedOnPrimary === 'boolean') this.settings.showEncryptedOnPrimary = parsed.showEncryptedOnPrimary;
+                    }
+                } catch (e) { console.error("Error loading settings:", e); }
+                this.ui.applySettings();
+            },
+            saveSettings() {
+                try { localStorage.setItem(this.config.SETTINGS_KEY, JSON.stringify(this.settings)); }
+                catch (e) { console.error("Error saving settings:", e); }
+            },
+            bindEventListeners() {
+                this.elements.sendButton.addEventListener('click', () => this.api.sendMessage());
+                this.elements.messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.api.sendMessage(); } });
+                this.elements.messageInput.addEventListener('input', () => this.ui.updateCharCount());
+                if (this.elements.preferencesButton) this.elements.preferencesButton.addEventListener('click', () => this.ui.openPreferencesModal());
+                if (this.elements.modalCloseButton) this.elements.modalCloseButton.addEventListener('click', () => this.ui.closePreferencesModal());
+                if (this.elements.preferencesModal) {
+                    this.elements.preferencesModal.addEventListener('click', (e) => { if (e.target === this.elements.preferencesModal) this.ui.closePreferencesModal(); });
+                    this.elements.preferencesModal.addEventListener('keydown', (e) => this.ui.handleModalKeyDown(e));
+                }
+                if (this.elements.autoScrollToggle) this.elements.autoScrollToggle.addEventListener('change', (e) => { this.settings.autoScroll = e.target.checked; this.saveSettings(); });
+                if (this.elements.metaDetailToggle) this.elements.metaDetailToggle.addEventListener('change', (e) => { this.settings.showExtraMeta = e.target.checked; this.ui.applySettings(); this.saveSettings(); });
+    
+                if (this.elements.showEncryptedToggle) {
+                    this.elements.showEncryptedToggle.addEventListener('change', (e) => {
+                        this.settings.showEncryptedOnPrimary = e.target.checked;
+                        this.saveSettings();
+                        this.ui.applySettings();
+                        if (this.state.selectedChannelIndex === 0) {
+                            console.log("Encrypted message visibility changed for Primary channel. Re-filtering messages.");
+                            this.ui.refreshCurrentChannelView();
+                        }
+                    });
+                }
+    
+                this.elements.channelSelector.addEventListener('change', (e) => this.handleChannelChange(e));
+                window.addEventListener('resize', () => this.ui.checkSendLabelVisibility());
+            },
+    
+            async handleChannelChange(event) {
+                const newIndex = parseInt(event.target.value, 10);
+                if (isNaN(newIndex) || newIndex === this.state.selectedChannelIndex) {
+                    if (newIndex === -1 && this.state.selectedChannelIndex !== -1) {
+                       this.state.selectedChannelIndex = -1;
+                       this.ui.updateChatTitle();
+                       this.ui.clearMessages();
+                       this.ui.displaySystemMessage("No channel selected or available.");
+                       this.ui.updateConnectionStatus(this.elements.statusText.textContent);
+                    } else {
+                       console.debug(`Channel change to ${newIndex} ignored (no actual change or already -1). Current: ${this.state.selectedChannelIndex}`);
+                    }
+                    return;
+                }
+    
+                console.log(`Channel changed from ${this.state.selectedChannelIndex} to index: ${newIndex}`);
+                this.state.selectedChannelIndex = newIndex;
+                this.ui.updateChatTitle();
+    
+                this.ui.clearMessages();
+                this.state.messageCache.clear();
+                this.state.isHistoryLoadedForChannel[this.state.selectedChannelIndex] = false;
+    
+                if (this.elements.showEncryptedSettingItem) {
+                    this.elements.showEncryptedSettingItem.style.display = (this.state.selectedChannelIndex === 0) ? 'flex' : 'none';
+                }
+    
+                if (this.state.selectedChannelIndex === -1) {
+                    this.ui.displaySystemMessage("No channel selected.");
+                    if(this.elements.channelSelector) this.elements.channelSelector.disabled = false;
+                    this.ui.updateConnectionStatus(this.elements.statusText.textContent);
+    
+                    return;
+                }
+    
+                this.ui.displaySystemMessage(`Loading messages for ${this.state.availableChannels[this.state.selectedChannelIndex]?.name || 'selected channel'}...`);
+                if(this.elements.channelSelector) this.elements.channelSelector.disabled = true;
+    
+                await this.api.fetchChannelData(this.state.selectedChannelIndex);
+    
+                if(this.elements.channelSelector) this.elements.channelSelector.disabled = false;
+                this.ui.updateConnectionStatus(this.elements.statusText.textContent);
+            },
+    
+            api: {
+                async _fetch(url, options = {}) {
+                    try {
+                        const response = await fetch(url, options);
+                        if (!response.ok) {
+                            let errorData = { detail: `HTTP error! status: ${response.status} ${response.statusText}` };
+                            try { errorData = await response.json(); } catch (e) {  }
+                            const errorMessage = errorData.detail || JSON.stringify(errorData) || `Request failed with status ${response.status}`;
+                            console.error(`API Error on ${url}: ${errorMessage}`, errorData);
+                            throw new Error(errorMessage);
+                        }
+                        const contentType = response.headers.get("content-type");
+                        if (contentType && contentType.indexOf("application/json") !== -1) {
+                            return response.json();
+                        }
+                        return response.text();
+                    } catch (error) {
+                        console.error(`Network or parsing error on ${url}:`, error);
+                        App.ui.updateConnectionStatus(App.config.STATUS_TYPES.ERROR, error.message || "Network error");
+                        throw error;
+                    }
+                },
+                async fetchMyNodeIdAndUpdateUI() {
+                    console.debug("Attempting to fetch local node ID...");
+                    const oldNodeId = App.state.currentUserNodeId;
+                    try {
+                        const statusData = await this._fetch(`${App.config.API_BASE_URL}/status`);
+                        if (statusData?.local_node_info?.node_id) {
+                            App.state.currentUserNodeId = statusData.local_node_info.node_id;
+                            console.log("Local node ID identified:", App.state.currentUserNodeId);
+                            App.state.nodes[App.state.currentUserNodeId] = {
+                                ...App.state.nodes[App.state.currentUserNodeId],
+                                ...statusData.local_node_info,
+                                node_id: App.state.currentUserNodeId
+                            };
+                        } else {
+                            console.warn("Local node ID not found in /api/status response.");
+                            App.state.currentUserNodeId = App.config.UNKNOWN_USER_ID;
+                        }
+                    } catch (error) {
+                        console.error("Error fetching node ID from /api/status:", error.message);
+                        App.state.currentUserNodeId = App.config.UNKNOWN_USER_ID;
+                    }
+                    if (App.state.currentUserNodeId !== oldNodeId) {
+                        console.log(`Local node ID changed or confirmed: ${App.state.currentUserNodeId}. Re-evaluating message styling.`);
+                        App.ui.updateAllMessageStyling();
+                    }
+                },
+                async fetchChannels() {
+                    console.log("Fetching channel information via fetchChannels()...");
+                    const currentSelectedChannelId = App.state.selectedChannelIndex;
+                    App.state.availableChannels = {};
+                    if (App.elements.channelSelector) { 
+                        App.elements.channelSelector.innerHTML = '<option value="0">Loading channels...</option>';
+                        App.elements.channelSelector.disabled = true;
+                    }
+                    try {
+                        const statusData = await this._fetch(`${App.config.API_BASE_URL}/status`);
+                        if (statusData?.local_node_info?.channels_json) {
+                            const channelsArray = JSON.parse(statusData.local_node_info.channels_json);
+                            if (Array.isArray(channelsArray) && channelsArray.length > 0) {
+                                channelsArray.forEach(ch => {
+                                    if (ch && typeof ch.index === 'number') {
+                                        App.state.availableChannels[ch.index] = {
+                                            name: ch.settings?.name || `Channel ${ch.index}`,
+                                            role: ch.role || 'UNKNOWN',
+                                            index: ch.index
+                                        };
+                                        if (ch.index === 0 && !ch.settings?.name) {
+                                            App.state.availableChannels[ch.index].name = "Primary";
+                                        }
+                                    }
+                                });
+                            } else {
+                                console.warn("No channels found in channels_json or it's not an array.", channelsArray);
+                            }
+                        } else {
+                            console.warn("Channel settings (channels_json) not found in /api/status response.");
+                        }
+                    } catch (error) {
+                        App.ui.updateConnectionStatus(App.elements.statusText.textContent || App.config.STATUS_TYPES.ERROR, `Failed to load channel list: ${error.message}`);
+                    } finally {
+                        if (Object.keys(App.state.availableChannels).length === 0 || !App.state.availableChannels[0]) {
+                            console.warn("Channel list empty or Primary (0) missing after fetch, ensuring fallback Primary channel.");
+                            App.state.availableChannels[0] = { name: "Primary", role: "PRIMARY", index: 0 };
+                        }
+    
+                        if (App.state.availableChannels[currentSelectedChannelId]) {
+                            App.state.selectedChannelIndex = currentSelectedChannelId;
+                        } else if (App.state.availableChannels[0]) {
+                            App.state.selectedChannelIndex = 0;
+                        } else {
+                            const firstAvailable = Object.keys(App.state.availableChannels)[0];
+                            App.state.selectedChannelIndex = firstAvailable ? parseInt(firstAvailable) : -1;
+                        }
+                        App.ui.populateChannelDropdown();
+                    }
+                },
+                async fetchChannelData(channelIndex) {
+                    console.log(`Workspaceing initial data for channel ${channelIndex}...`);
+                    if (channelIndex === -1) {
+                        console.warn("fetchChannelData called with invalid channelIndex -1. Aborting.");
+                        if (App.elements.messageContainer) {
+                            const loadingMsgElement = Array.from(App.elements.messageContainer.querySelectorAll('.system-message'))
+                                .find(el => el.textContent.includes('Loading messages for') || el.textContent.includes('Initializing connection...'));
+                            if (loadingMsgElement) loadingMsgElement.remove();
+                            App.ui.displaySystemMessage("No channel selected or channel is invalid.");
+                        }
+                        return;
+                    }
+    
+                    if (!App.state.isHistoryLoadedForChannel[channelIndex]) {
+                        if (!App.state.currentUserNodeId || App.state.currentUserNodeId === App.config.UNKNOWN_USER_ID) {
+                            await this.fetchMyNodeIdAndUpdateUI();
+                        }
+                        try {
+                            const nodesData = await this._fetch(`${App.config.API_BASE_URL}/nodes`);
+                            if (typeof nodesData === 'object' && nodesData !== null) {
+                                App.state.nodes = {};
+                                let updatedCount = 0;
+                                Object.keys(nodesData).forEach(key => {
+                                    const node = nodesData[key];
+                                    const nodeId = node?.node_id || (node?.num ? '!' + node.num.toString(16) : key);
+                                    if (nodeId && nodeId !== 'null') {
+                                        App.state.nodes[nodeId] = node;
+                                        updatedCount++;
+                                    }
+                                });
+                                console.debug(`Workspaceed and set ${updatedCount} nodes for history display.`);
+                                App.ui.updateAllMessageStyling();
+                            }
+    
+                            const historyLimit = 50;
+                            const historyUrl = `${App.config.API_BASE_URL}/messages/history?limit=${historyLimit}&channel=${channelIndex}`;
+                            console.log(`Workspaceing message history from: ${historyUrl}`);
+                            const historyMessages = await this._fetch(historyUrl);
+    
+                            const loadingMsgElement = Array.from(App.elements.messageContainer.querySelectorAll('.system-message'))
+                                .find(el => el.textContent.includes('Loading messages for') || el.textContent.includes('Initializing connection...'));
+                            if (loadingMsgElement) {
+                                loadingMsgElement.remove();
+                            }
+    
+                            const channelNameForDisplay = App.state.availableChannels[channelIndex]?.name || 'this channel';
+    
+                            if (Array.isArray(historyMessages) && historyMessages.length > 0) {
+                                const filteredMessages = historyMessages
+                                    .filter(msg => msg && (typeof msg.channel === 'number' || msg.channel === null) && msg.channel === channelIndex);
+    
+                                // Create a new array by reversing the filtered messages.
+                                // This is crucial if the server sends newest messages first.
+                                const correctlyOrderedHistoricalMessages = [...filteredMessages].reverse();
+    
+                                console.log("--- DEBUG: Historical Messages Order Check ---");
+                                console.log(`Found ${filteredMessages.length} historical messages for channel ${channelIndex}.`);
+                                console.log("First 3 messages from server (after filter, before reverse):");
+                                filteredMessages.slice(0, 3).forEach(m => {
+                                    const ts = m.rxTime || m.timestamp || m.decoded?.rxTime;
+                                    console.log(`  TS: ${ts} (${App.utils.formatTime(ts)}) - Text: "${App.utils.extractTextFromPayload(m.text || m.decoded?.text || m.decoded?.payload || m.payload).substring(0,30)}"`);
+                                });
+                                console.log("First 3 messages to be displayed (after reverse, should be oldest of batch):");
+                                 correctlyOrderedHistoricalMessages.slice(0, 3).forEach(m => {
+                                    const ts = m.rxTime || m.timestamp || m.decoded?.rxTime;
+                                    console.log(`  TS: ${ts} (${App.utils.formatTime(ts)}) - Text: "${App.utils.extractTextFromPayload(m.text || m.decoded?.text || m.decoded?.payload || m.payload).substring(0,30)}"`);
+                                });
+                                console.log("--- END DEBUG ---");
+    
+    
+                                correctlyOrderedHistoricalMessages.forEach(msg => {
+                                    // console.log("Appending historical msg (timestamp): ", msg.rxTime || msg.timestamp || msg.decoded?.rxTime); // Optional detailed log
+                                    App.ui.displayMessage(msg, true);
+                                });
+                                App.ui.displaySystemMessage(`--- Displaying last ${correctlyOrderedHistoricalMessages.length} messages for ${channelNameForDisplay} : Live messages will appear below ---`);
+                            } else {
+                                App.ui.displaySystemMessage(`No recent messages found in history for ${channelNameForDisplay}. Live messages will appear below.`);
+                            }
+                            App.state.isHistoryLoadedForChannel[channelIndex] = true;
+                        } catch (error) {
+                            console.error(`Error fetching data for channel ${channelIndex}:`, error);
+                            const loadingMsgError = Array.from(App.elements.messageContainer.querySelectorAll('.system-message')).find(el => el.textContent.includes('Loading'));
+                            if (loadingMsgError) loadingMsgError.remove();
+                            App.ui.displaySystemMessage(`Error loading data: ${error.message}.`);
+                            App.ui.updateConnectionStatus(App.config.STATUS_TYPES.ERROR, `Failed to load data for channel ${channelIndex}.`);
+                        } finally {
+                            if(App.settings.autoScroll) {
+                                requestAnimationFrame(() => App.ui.scrollToBottom());
+                            }
+                        }
+                    } else {
+                        console.log(`History for channel ${channelIndex} already loaded or not requested again.`);
+                        const loadingMsgQuickSwitch = Array.from(App.elements.messageContainer.querySelectorAll('.system-message'))
+                            .find(el => el.textContent.includes('Loading messages for'));
+                        if (loadingMsgQuickSwitch) {
+                            loadingMsgQuickSwitch.remove();
+                        }
+                    }
+                },
+                async sendMessage() {
+                    const messageText = App.elements.messageInput.value.trim();
+                    if (!messageText || App.elements.sendButton.disabled || App.state.selectedChannelIndex === -1 || !App.state.currentUserNodeId || App.state.currentUserNodeId === App.config.UNKNOWN_USER_ID) {
+                        console.warn("Send aborted. Conditions not met:", { messageText, sendButtonDisabled: App.elements.sendButton.disabled, selectedChannel: App.state.selectedChannelIndex, currentUserNodeId: App.state.currentUserNodeId });
+                        return;
+                    }
+                    if (messageText.length > App.config.MAX_MESSAGE_LENGTH) {
+                        App.ui.updateConnectionStatus(App.elements.statusText.textContent, `Message too long (max ${App.config.MAX_MESSAGE_LENGTH} chars).`);
+                        setTimeout(() => App.ui.updateConnectionStatus(App.elements.statusText.textContent, null), 3000);
+                        return;
+                    }
+    
+                    const originalButtonText = App.elements.sendButton.innerHTML;
+                    App.elements.sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                    App.elements.sendButton.disabled = true;
+                    App.elements.messageInput.disabled = true;
+    
+                    try {
+                        console.log(`Sending API POST for message "${messageText}" to channel index ${App.state.selectedChannelIndex}`);
+                        const result = await this._fetch(`${App.config.API_BASE_URL}/messages`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                message: messageText,
+                                channel: App.state.selectedChannelIndex,
+                                destination: App.config.PUBLIC_DESTINATION_ID
+                            })
+                        });
+                        console.log("Message send API successful (queued):", result);
+                        App.elements.messageInput.value = '';
+                        App.ui.updateCharCount();
+                        App.elements.errorMessage.classList.add('hidden');
+                    } catch (error) {
+                        console.error(`Error sending message API call:`, error);
+                    } finally {
+                        App.elements.sendButton.innerHTML = originalButtonText;
+                        App.ui.updateConnectionStatus(App.elements.statusText.textContent);
+                    }
+                }
+            },
+    
+            ui: {
+                applySettings() {
+                    if (App.elements.autoScrollToggle) App.elements.autoScrollToggle.checked = App.settings.autoScroll;
+                    if (App.elements.metaDetailToggle) App.elements.metaDetailToggle.checked = App.settings.showExtraMeta;
+                    if (App.elements.showEncryptedToggle) App.elements.showEncryptedToggle.checked = App.settings.showEncryptedOnPrimary;
+                    App.elements.messageContainer.classList.toggle('compact-meta', !App.settings.showExtraMeta);
+    
+                    if (App.elements.showEncryptedSettingItem) {
+                        App.elements.showEncryptedSettingItem.style.display = (App.state.selectedChannelIndex === 0) ? 'flex' : 'none';
+                    }
+    
+                },
+                refreshCurrentChannelView() {
+                    const currentChannel = App.state.selectedChannelIndex;
+                    console.log(`Refreshing view for channel ${currentChannel}`);
+                    if (currentChannel !== -1) {
+                        App.state.isHistoryLoadedForChannel[currentChannel] = false;
+                        App.ui.clearMessages();
+                        App.ui.displaySystemMessage(`Refreshing messages for ${App.state.availableChannels[currentChannel]?.name || 'current channel'}...`);
+                        App.api.fetchChannelData(currentChannel);
+                    } else {
+                        App.ui.clearMessages();
+                        App.ui.displaySystemMessage("No channel selected to refresh.");
+                    }
+                },
+                openPreferencesModal() {
+                    if (App.elements.preferencesModal) {
+                        App.state.lastFocusedElement = document.activeElement;
+                        App.elements.preferencesModal.classList.add('active');
+                        App.state.activeModalElement = App.elements.preferencesModal;
+                        const focusableElements = App.elements.preferencesModalContent.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                        if (focusableElements.length > 0) focusableElements[0].focus();
+                        else App.elements.preferencesModal.focus();
+                    }
+                },
+                closePreferencesModal() {
+                    if (App.elements.preferencesModal) {
+                        App.elements.preferencesModal.classList.remove('active');
+                        App.state.activeModalElement = null;
+                        if (App.state.lastFocusedElement) App.state.lastFocusedElement.focus();
+                        App.state.lastFocusedElement = null;
+                    }
+                },
+                handleModalKeyDown(event) {
+                    if (!App.state.activeModalElement || !App.state.activeModalElement.classList.contains('active')) return;
+    
+                    if (event.key === 'Escape') {
+                        this.closePreferencesModal();
+                        return;
+                    }
+    
+                    if (event.key === 'Tab') {
+                        const modalContent = App.elements.preferencesModalContent;
+                        if (!modalContent) return;
+    
+                        const focusableElements = Array.from(
+                            modalContent.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+                        ).filter(el => el.offsetParent !== null);
+    
+                        if (focusableElements.length === 0) return;
+    
+                        const firstElement = focusableElements[0];
+                        const lastElement = focusableElements[focusableElements.length - 1];
+    
+                        if (event.shiftKey) {
+                            if (document.activeElement === firstElement) {
+                                lastElement.focus();
+                                event.preventDefault();
+                            }
+                        } else {
+                            if (document.activeElement === lastElement) {
+                                firstElement.focus();
+                                event.preventDefault();
+                            }
+                        }
+                    }
+                },
+                loadNavigation() {
+                    if (App.elements.navPlaceholder) {
+                        fetch('/static/top_nav.html')
+                            .then(response => response.ok ? response.text() : Promise.reject(`Failed to load nav: ${response.status}`))
+                            .then(data => { App.elements.navPlaceholder.innerHTML = data; })
+                            .catch(error => console.error('Navigation load error:', error));
+                    }
+                },
+                loadFooter() {
+                    if (App.elements.footerPlaceholder) {
+                        fetch('/static/footer.html')
+                            .then(response => response.ok ? response.text() : null)
+                            .then(data => { if (data) App.elements.footerPlaceholder.innerHTML = data; })
+                            .catch(error => console.error('Footer load error:', error));
+                    }
+                },
+                updateAllMessageStyling() {
+                    const messages = App.elements.messageContainer.querySelectorAll('.message-item');
+                    messages.forEach(msgElement => {
+                        const senderId = msgElement.dataset.senderId;
+                        if (senderId) {
+                            const isCurrentUser = App.utils.getIsMsgFromCurrentUser(senderId);
+                            msgElement.classList.toggle('current-user', isCurrentUser);
+    
+                            const nameElement = msgElement.querySelector('.sender-name');
+                            if (nameElement) {
+                                if (!isCurrentUser) {
+                                    nameElement.style.color = App.utils.getNodeAccentColor(senderId);
+                                } else {
+                                    nameElement.style.color = '';
+                                }
+                                nameElement.textContent = App.utils.getNodeName(senderId);
+                            }
+    
+                            const avatarElement = msgElement.querySelector('.node-avatar');
+                            if (avatarElement) {
+                                if (!isCurrentUser) {
+                                    avatarElement.style.backgroundColor = App.utils.getNodeAccentColor(senderId);
+                                } else {
+                                    avatarElement.style.backgroundColor = '';
+                                }
+                                avatarElement.textContent = App.utils.getNodeInitials(senderId);
+                            }
+                        }
+                    });
+                },
+                populateChannelDropdown() {
+                    if (!App.elements.channelSelector) {
+                        console.warn("Channel selector element not found for populating.");
+                        return;
+                    }
+                    const previouslySelectedValue = String(App.state.selectedChannelIndex);
+                    App.elements.channelSelector.innerHTML = '';
+    
+                    const sortedIndices = Object.keys(App.state.availableChannels).map(Number).sort((a, b) => a - b);
+    
+                    if (sortedIndices.length === 0) {
+                        console.error("CRITICAL: No channels available to populate dropdown.");
+                        const option = document.createElement('option');
+                        option.value = "-1";
+                        option.textContent = "No Channels Available";
+                        App.elements.channelSelector.appendChild(option);
+                        App.elements.channelSelector.disabled = true;
+                        App.state.selectedChannelIndex = -1;
+                        this.updateChatTitle();
+                        return;
+                    }
+    
+                    let selectionMade = false;
+                    sortedIndices.forEach(index => {
+                        const channelInfo = App.state.availableChannels[index];
+                        const name = channelInfo?.name || `Unnamed Channel ${index}`;
+                        const role = channelInfo?.role || 'UNKNOWN';
+    
+                        if (role !== 'DISABLED') {
+                            const option = document.createElement('option');
+                            option.value = String(index);
+                            option.textContent = App.utils.sanitizeText(name);
+                            option.title = `Index: ${index}, Role: ${role}`;
+                            App.elements.channelSelector.appendChild(option);
+    
+                            if (option.value === previouslySelectedValue) {
+                                option.selected = true;
+                                App.state.selectedChannelIndex = index;
+                                selectionMade = true;
+                            }
+                        }
+                    });
+    
+                    if (!selectionMade) {
+                        const firstEnabledOption = App.elements.channelSelector.querySelector('option');
+                        if (firstEnabledOption) {
+                            firstEnabledOption.selected = true;
+                            App.state.selectedChannelIndex = parseInt(firstEnabledOption.value, 10);
+                            console.log(`Dropdown: Defaulting to first available channel: Name: '${firstEnabledOption.textContent}', Index: ${App.state.selectedChannelIndex}`);
+                        } else {
+                            console.error("CRITICAL: No ENABLED channels to select in dropdown.");
+                            const option = document.createElement('option');
+                            option.value = "-1";
+                            option.textContent = "No Enabled Channels";
+                            App.elements.channelSelector.appendChild(option);
+                            App.elements.channelSelector.disabled = true;
+                            App.state.selectedChannelIndex = -1;
+                        }
+                    }
+    
+                    App.elements.channelSelector.value = String(App.state.selectedChannelIndex);
+                    App.elements.channelSelector.disabled = (App.state.selectedChannelIndex === -1 && App.elements.channelSelector.options.length <=1 ) || App.elements.channelSelector.options.length === 0 ;
+    
+                    this.updateChatTitle();
+                    this.updateConnectionStatus(App.elements.statusText.textContent);
+    
+                    if (App.elements.showEncryptedSettingItem) {
+                        App.elements.showEncryptedSettingItem.style.display = (App.state.selectedChannelIndex === 0) ? 'flex' : 'none';
+                    }
+                },
+                updateChatTitle() {
+                    const currentChannelInfo = App.state.availableChannels[App.state.selectedChannelIndex];
+                    if (App.state.selectedChannelIndex === -1 || !currentChannelInfo) {
+                        App.elements.chatTitle.innerHTML = `<i class="fas fa-exclamation-triangle"></i> No Channel Selected`;
+                    } else {
+                        const channelName = currentChannelInfo.name;
+                        App.elements.chatTitle.innerHTML = `<i class="fas fa-comments"></i> ${App.utils.sanitizeText(channelName)} Chat`;
+                    }
+                },
+    
+                displayMessage(messageData, isHistory = false) {
+                    const {
+                        from_id, fromId: fromIdAlt,
+                        to_id, toId: toIdAlt,
+                        text: rawText, payload,
+                        timestamp: msgTimestampRaw, rxTime,
+                        channel,
+                        rx_snr, rx_rssi,
+                        packet_event_id, event_id,
+                        telemetry, decoded
+                    } = messageData;
+    
+                    const recipientId = to_id || toIdAlt || messageData.toId;
+                    const isLikelyDM = recipientId && recipientId !== '^all' && recipientId !== '!ffffffff';
+                    const isPrivatePortnum = decoded?.portnum === 'PRIVATE_APP' || (typeof decoded?.portnum === 'number' && decoded.portnum === 4);
+    
+                    if (isLikelyDM || isPrivatePortnum) {
+                        // console.debug(`Hiding DM/Private (To: ${recipientId}, Portnum: ${decoded?.portnum}) from channel view. Message:`, messageData); // Kept for debugging if needed
+                        return;
+                    }
+    
+                    const isOpaqueMessage = decoded?.portnum === 'OPAQUE_APP' || (typeof decoded?.portnum === 'number' && decoded.portnum === 0);
+    
+                    if (App.state.selectedChannelIndex === 0 && isOpaqueMessage && !App.settings.showEncryptedOnPrimary) {
+                        // console.debug("Hiding encrypted/opaque message from Primary Channel due to preference.", messageData); // Kept for debugging
+                        return;
+                    }
+    
+                    const senderId = from_id || fromIdAlt || (decoded?.from ? '!' + decoded.from.toString(16) : null);
+                    const finalEventId = packet_event_id || event_id;
+                    const messageChannel = (typeof channel === 'number') ? channel : (decoded?.channel ?? null);
+    
+                    if (!senderId) { console.warn("Msg display skipped: Missing senderId", messageData); return; }
+    
+                    if (messageChannel !== App.state.selectedChannelIndex) {
+                        return;
+                    }
+    
+                    let text = App.utils.extractTextFromPayload(rawText ?? decoded?.text ?? decoded?.payload ?? payload);
+                    if (!text && (decoded?.portnum === 'TEXT_MESSAGE_APP' && !isHistory)) {
+                         console.warn("Msg display skipped: Empty text payload for live TEXT_MESSAGE_APP", messageData); return;
+                    }
+                    if (decoded?.portnum && decoded.portnum !== 'TEXT_MESSAGE_APP' && !text) {
+                        text = `[${decoded.portnum}]`;
+                    }
+                    if (!text && isHistory && decoded?.portnum !== 'TEXT_MESSAGE_APP') {
+                        text = `[${decoded?.portnum || 'UNKNOWN_TYPE'}]`;
+                    }
+                    // if (!text && !isOpaqueMessage && !isPrivatePortnum) { // Reduce noise for potentially empty relevant messages
+                    //     console.debug("Msg display: Potentially empty relevant message, showing for context or if intended.", messageData, "Text:", text);
+                    // }
+    
+                    const displayTimestamp = messageData._sort_timestamp || rxTime || msgTimestampRaw || (decoded?.rxTime) || (Date.now() / 1000); // Use _sort_timestamp if available
+                    const finalMsgKey = finalEventId ? `evt-${finalEventId}` : `${senderId}-${messageChannel ?? 'dm_or_opaque'}-${displayTimestamp}-${text.slice(0,50)}`;
+                    if (App.state.messageCache.has(finalMsgKey) && !isHistory) { // Allow historical duplicates if IDs are missing, but not live ones
+                        console.debug("Duplicate live message blocked by cache:", finalMsgKey); return;
+                    }
+                    App.state.messageCache.add(finalMsgKey);
+                    while (App.state.messageCache.size > App.config.MESSAGE_CACHE_SIZE_LIMIT) {
+                        App.state.messageCache.delete(App.state.messageCache.values().next().value);
+                    }
+    
+                    const isFromCurrentUser = App.utils.getIsMsgFromCurrentUser(senderId);
+                    const senderName = App.utils.getNodeName(senderId);
+                    const senderInitials = App.utils.getNodeInitials(senderId);
+                    const accentColor = App.utils.getNodeAccentColor(senderId);
+                    const timeStr = App.utils.formatTime(displayTimestamp);
+                    const sanitizedMessageText = App.utils.sanitizeText(text || "");
+    
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'message-item' + (isFromCurrentUser ? ' current-user' : '') + (isHistory ? ' historical-message' : '');
+                    messageElement.dataset.senderId = senderId;
+                    if (finalEventId) { messageElement.id = `msg-${finalEventId}`; }
+    
+                    let metaItemsHTML = '';
+                    const currentRxSnr = rx_snr ?? decoded?.rxSnr;
+                    const currentRxRssi = rx_rssi ?? decoded?.rxRssi;
+                    const signal = App.utils.getSignalStrengthClass(currentRxRssi, currentRxSnr);
+                    if (signal.class !== 'unknown') { metaItemsHTML += `<div class="message-meta-item" title="Signal: ${signal.label} (RSSI: ${currentRxRssi ?? 'N/A'} dBm, SNR: ${currentRxSnr?.toFixed(1) ?? 'N/A'} dB)"><div class="signal-bars ${signal.class}"><div></div><div></div><div></div><div></div></div></div>`; }
+    
+                    const distanceMeters = App.utils.getEstimatedDistance(senderId);
+                    const distanceStr = App.utils.formatDistance(distanceMeters);
+                    if (distanceStr) { metaItemsHTML += `<div class="message-meta-item" title="Est. distance: ~${distanceStr}"><i class="fas fa-map-marker-alt fa-fw"></i> ~${distanceStr}</div>`; }
+    
+                    let batteryLevel = App.utils.getNodeBatteryLevel(senderId, decoded, telemetry);
+                    if (batteryLevel !== null) {
+                        const battery = App.utils.getBatteryLevelClass(batteryLevel);
+                        metaItemsHTML += `<div class="message-meta-item battery-indicator" title="Battery: ${battery.label}"><i class="fas ${battery.icon} fa-fw battery-icon ${battery.class}"></i> ${battery.label !== 'N/A' ? battery.label : ''}</div>`;
+                    }
+    
+                    if (decoded?.hopLimit !== undefined) { metaItemsHTML += `<div class="message-meta-item message-meta-detail" title="Hop Limit"><i class="fas fa-route fa-fw"></i> HL: ${decoded.hopLimit}</div>`; }
+    
+                    const nodeDataSource = App.state.nodes[senderId];
+                    if (nodeDataSource && App.settings.showExtraMeta) {
+                        const hwModel = nodeDataSource.hw_model || nodeDataSource.user?.hwModel || (nodeDataSource.radio && nodeDataSource.radio.chipType);
+                        if (hwModel) metaItemsHTML += `<div class="message-meta-item message-meta-detail" title="Hardware Model: ${App.utils.sanitizeText(hwModel)}"><i class="fas fa-microchip fa-fw"></i> ${App.utils.sanitizeText(hwModel)}</div>`;
+                        if (nodeDataSource.firmware_version) metaItemsHTML += `<div class="message-meta-item message-meta-detail" title="Firmware: ${App.utils.sanitizeText(nodeDataSource.firmware_version)}"><i class="fas fa-code-branch fa-fw"></i> ${App.utils.sanitizeText(nodeDataSource.firmware_version)}</div>`;
+                        metaItemsHTML += `<div class="message-meta-item message-meta-detail" title="Node ID: ${App.utils.sanitizeText(senderId)}"><i class="fas fa-tag fa-fw"></i> ${App.utils.sanitizeText(senderId)}</div>`;
+                        const longName = nodeDataSource.user?.longName || nodeDataSource.long_name;
+                        if (longName && longName.trim() && longName.trim().toLowerCase() !== senderName.trim().toLowerCase()) {
+                            metaItemsHTML += `<div class="message-meta-item message-meta-detail" title="Long Name: ${App.utils.sanitizeText(longName)}"><i class="fas fa-id-card fa-fw"></i> ${App.utils.sanitizeText(longName)}</div>`;
+                        }
+                    }
+    
+                    messageElement.innerHTML = `
+                        <div class="node-avatar" style="background-color: ${accentColor};" title="Node: ${senderName} (${App.utils.sanitizeText(senderId)})">${senderInitials}</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="sender-name" style="${!isFromCurrentUser ? 'color:'+accentColor : ''}">${App.utils.sanitizeText(senderName)}</span>
+                                <span class="message-time">${timeStr}</span>
+                            </div>
+                            <div class="message-text">${sanitizedMessageText}</div>
+                            ${metaItemsHTML ? `<div class="message-meta">${metaItemsHTML}</div>` : ''}
+                        </div>`;
+    
+                    App.elements.messageContainer.appendChild(messageElement);
+                    let doScroll = false;
+                    if (App.settings.autoScroll) {
+                        if (!isHistory) {
+                            doScroll = true;
+                        } else {
+                            // For history, only scroll if we were already near the bottom when it was loaded
+                            // This prevents jumping to bottom if user scrolled up to read history & more loads.
+                            // However, for initial full history load, we usually want to scroll.
+                            // The current logic scrolls if we are within 100px of bottom.
+                            const mc = App.elements.messageContainer;
+                            if (mc.scrollHeight - mc.clientHeight <= mc.scrollTop + 100) doScroll = true;
+                        }
+                    }
+                    if (doScroll) requestAnimationFrame(() => this.scrollToBottom());
+                },
+                displaySystemMessage(text) {
+                    const el = document.createElement('div');
+                    el.className = 'system-message';
+                    el.textContent = text;
+                    App.elements.messageContainer.appendChild(el);
+                    if (App.settings.autoScroll) requestAnimationFrame(() => this.scrollToBottom());
+                },
+                clearMessages() { App.elements.messageContainer.innerHTML = ''; },
+                scrollToBottom() { App.elements.messageContainer.scrollTo({ top: App.elements.messageContainer.scrollHeight, behavior: 'smooth' }); },
+                updateConnectionStatus(status, error = null) {
+                    let safeStatus = typeof status === 'string' ? status.toLowerCase().trim() : App.config.STATUS_TYPES.UNKNOWN;
+                    if (typeof status === 'object' && status !== null && status.connection_status) {
+                        safeStatus = status.connection_status.toLowerCase().trim();
+                        error = status.last_error || error;
+                    }
+    
+                    App.elements.statusText.textContent = safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1);
+                    App.elements.statusIndicator.className = 'status-indicator ' + safeStatus;
+    
+                    App.elements.errorMessage.textContent = error || '';
+                    App.elements.errorMessage.classList.toggle('hidden', !error);
+    
+                    const isConnected = safeStatus === App.config.STATUS_TYPES.CONNECTED || safeStatus === App.config.STATUS_TYPES.ONLINE;
+                    const canInteract = isConnected && App.state.selectedChannelIndex !== -1;
+    
+                    App.elements.messageInput.disabled = !canInteract;
+                    App.elements.sendButton.disabled = !canInteract;
+    
+                    let disableChannelSelector = !(isConnected || safeStatus === App.config.STATUS_TYPES.CONNECTING);
+                    if (App.elements.channelSelector && App.state.selectedChannelIndex === -1 && App.elements.channelSelector.options.length > 0 && App.elements.channelSelector.options[0].value === "-1") {
+                        disableChannelSelector = true;
+                    }
+                    if(App.elements.channelSelector) App.elements.channelSelector.disabled = disableChannelSelector;
+                },
+                updateCharCount() {
+                    const count = App.elements.messageInput.value.length;
+                    const max = App.config.MAX_MESSAGE_LENGTH;
+                    App.elements.charCount.textContent = `${count}/${max}`;
+                    App.elements.charCount.className = 'char-count';
+                    if (count > max) App.elements.charCount.classList.add('danger');
+                    else if (count > max * 0.9) App.elements.charCount.classList.add('warning');
+                },
+                checkSendLabelVisibility() {
+                    if(App.elements.sendTextLabel) App.elements.sendTextLabel.style.display = window.innerWidth <= 640 ? 'none' : 'inline';
+                }
+            },
+    
+            sse: {
+                connect() {
+                    if (App.state.eventSource) {
+                        console.log("Closing existing SSE connection.");
+                        App.state.eventSource.close();
+                    }
+                    console.log(`Connecting to SSE: ${App.config.SSE_URL}...`);
+                    App.ui.updateConnectionStatus(App.config.STATUS_TYPES.CONNECTING);
+                    App.state.isInitialLoadComplete = false; 
+                    App.state.isHistoryLoadedForChannel = {}; 
+                    App.state.isLocalNodeInfoProcessing = false; 
+    
+                    App.state.eventSource = new EventSource(App.config.SSE_URL);
+    
+                    App.state.eventSource.onopen = async () => {
+                        console.log('SSE connection opened.');
+                        App.ui.updateConnectionStatus(App.config.STATUS_TYPES.CONNECTED);
+                        await App.api.fetchMyNodeIdAndUpdateUI();
+                        await App.api.fetchChannels(); 
+    
+                        if (App.state.selectedChannelIndex !== -1 && App.state.availableChannels[App.state.selectedChannelIndex]) {
+                            if (!App.state.isHistoryLoadedForChannel[App.state.selectedChannelIndex]) {
+                                console.log(`SSE onopen: fetching initial history for channel ${App.state.selectedChannelIndex}`);
+                                await App.api.fetchChannelData(App.state.selectedChannelIndex);
+                            } else {
+                                console.log(`SSE onopen: History for channel ${App.state.selectedChannelIndex} ALREADY marked as loaded.`);
+                            }
+                        } else if (App.state.selectedChannelIndex === -1) {
+                            console.warn("SSE Open: No valid channel selected after fetching channels.");
+                            const loadingMsg = Array.from(App.elements.messageContainer.querySelectorAll('.system-message')).find(el => el.textContent.includes('Loading') || el.textContent.includes('Initializing'));
+                            if (loadingMsg) loadingMsg.remove();
+                            App.ui.displaySystemMessage("No channel selected or available.");
+                        }
+                        App.state.isInitialLoadComplete = true; 
+                        console.log("SSE onopen: Initial load process complete. isInitialLoadComplete set to true.");
+                    };
+    
+                    App.state.eventSource.onerror = (errorEvent) => {
+                        console.error('SSE error:', errorEvent);
+                        App.state.isInitialLoadComplete = false;
+                        if (App.state.eventSource.readyState === EventSource.CLOSED) {
+                            App.ui.updateConnectionStatus(App.config.STATUS_TYPES.DISCONNECTED, `Connection lost. Retrying in ${App.config.RETRY_SSE_TIMEOUT / 1000}s...`);
+                            setTimeout(() => this.connect(), App.config.RETRY_SSE_TIMEOUT);
+                        } else {
+                            App.ui.updateConnectionStatus(App.config.STATUS_TYPES.CONNECTING, 'Connection issue, attempting to maintain...');
+                        }
+                    };
+                    this._addEventListeners();
+                },
+                _addEventListeners() {
+                    App.state.eventSource.addEventListener(App.config.SSE_EVENTS.PACKET, (e) => this.handlePacketEvent(e));
+                    App.state.eventSource.addEventListener(App.config.SSE_EVENTS.CONNECTION_STATUS, (e) => this.handleConnectionStatusEvent(e));
+                    App.state.eventSource.addEventListener(App.config.SSE_EVENTS.ERROR, (e) => this.handleErrorEvent(e));
+                    App.state.eventSource.addEventListener(App.config.SSE_EVENTS.NODES, (e) => this.handleNodesEvent(e));
+                    App.state.eventSource.addEventListener(App.config.SSE_EVENTS.NODE_UPDATE, (e) => this.handleNodeUpdateEvent(e));
+                    App.state.eventSource.addEventListener(App.config.SSE_EVENTS.LOCAL_NODE_INFO, (e) => this.handleLocalNodeInfoEvent(e));
+                },
+    
+                handlePacketEvent(event) {
+                    try {
+                        const packet = JSON.parse(event.data);
+    
+                        if (!App.state.isInitialLoadComplete &&
+                            packet.app_packet_type !== App.config.MESSAGE_TYPES.MESSAGE &&
+                            !(packet.decoded && (
+                                packet.decoded.portnum === 'OPAQUE_APP' || packet.decoded.portnum === 0 ||
+                                packet.decoded.portnum === 'PRIVATE_APP' || packet.decoded.portnum === 4
+                            ))
+                           ) {
+                            // console.debug("SSE Packet (non-essential or non-message) ignored: Initial channel/history load not complete.");
+                            return;
+                        }
+    
+                        const senderId = packet.fromId || (packet.decoded?.from ? '!' + packet.decoded.from.toString(16) : null);
+                        if (senderId && (
+                            packet.app_packet_type === App.config.MESSAGE_TYPES.TELEMETRY ||
+                            packet.app_packet_type === App.config.MESSAGE_TYPES.POSITION ||
+                            packet.app_packet_type === App.config.MESSAGE_TYPES.USER_INFO ||
+                            (packet.decoded && (packet.decoded.user || packet.decoded.position || packet.decoded.telemetry))
+                        )) {
+                            const nodeIdStr = String(senderId).startsWith('!') ? String(senderId) : `!${String(senderId)}`;
+                            App.state.nodes[nodeIdStr] = {
+                                ...App.state.nodes[nodeIdStr],
+                                ...packet,
+                                ...(packet.decoded || {}),
+                                ...(packet.decoded?.user ? { user: packet.decoded.user } : {}),
+                                ...(packet.decoded?.position ? { position: packet.decoded.position } : {}),
+                                ...(packet.decoded?.telemetry ? { deviceMetrics: packet.decoded.telemetry.deviceMetrics } : {}),
+                                lastHeard: packet.rxTime || packet.timestamp || (Date.now()/1000)
+                            };
+                            App.ui.updateAllMessageStyling();
+                        }
+    
+                        if (packet.app_packet_type === App.config.MESSAGE_TYPES.MESSAGE ||
+                            (packet.decoded && (
+                                packet.decoded.portnum === 'TEXT_MESSAGE_APP' ||
+                                packet.decoded.portnum === 'PRIVATE_APP' || packet.decoded.portnum === 4 ||
+                                packet.decoded.portnum === 'OPAQUE_APP' || packet.decoded.portnum === 0
+                            ))
+                           ) {
+                            App.ui.displayMessage({ ...packet }, false);
+                        }
+    
+                    } catch (e) {
+                        console.error('Error processing "packet" event:', e, event.data);
+                    }
+                },
+                handleConnectionStatusEvent(event) {
+                    try {
+                        App.ui.updateConnectionStatus(JSON.parse(event.data));
+                    } catch (e) {
+                        console.error('Error processing "connection_status" event:', e, event.data);
+                    }
+                },
+                handleErrorEvent(event) {
+                    try {
+                        let errorMsg = "An unknown error occurred via SSE.";
+                        if (event.data) {
+                            try {
+                                const errorData = JSON.parse(event.data);
+                                errorMsg = errorData.detail || errorData.message || JSON.stringify(errorData);
+                            } catch(jsonError) {
+                                errorMsg = event.data;
+                            }
+                        } else if (event.message) {
+                            errorMsg = event.message;
+                        }
+                        console.error("SSE received error event:", errorMsg, event);
+                        App.ui.updateConnectionStatus(App.config.STATUS_TYPES.ERROR, errorMsg);
+                    } catch (e) {
+                        console.error('Error processing SSE "error" event itself:', e, event);
+                    }
+                },
+                handleNodesEvent(event) {
+                    try {
+                        const nodesData = JSON.parse(event.data);
+                        const newNodesCache = {};
+                        let processedCount = 0;
+                        if (typeof nodesData === 'object' && nodesData !== null) {
+                            Object.keys(nodesData).forEach(key => {
+                                const node = nodesData[key];
+                                const nodeId = node?.node_id || (node?.num ? '!' + node.num.toString(16) : key);
+                                if (nodeId && nodeId !== 'null') {
+                                    newNodesCache[nodeId] = node;
+                                    processedCount++;
+                                }
+                            });
+                        }
+                        App.state.nodes = newNodesCache;
+                        console.log(`SSE: Nodes list full update received (${processedCount} nodes).`);
+                        App.ui.updateAllMessageStyling();
+                    } catch (e) {
+                        console.error('Error processing "nodes" event:', e, event.data);
+                    }
+                },
+                handleNodeUpdateEvent(event) {
+                    try {
+                        const nodeUpdate = JSON.parse(event.data);
+                        const nodeId = nodeUpdate?.node_id || (nodeUpdate?.num ? '!' + nodeUpdate.num.toString(16) : null);
+                        if (nodeId && nodeId !== 'null') {
+                            App.state.nodes[nodeId] = { ...App.state.nodes[nodeId], ...nodeUpdate };
+                            console.log(`SSE: Node ${nodeId} updated.`);
+                            App.ui.updateAllMessageStyling();
+                        } else {
+                            console.warn("SSE: Received node_update without a valid ID:", nodeUpdate);
+                        }
+                    } catch (e) {
+                        console.error('Error processing "node_update" event:', e, event.data);
+                    }
+                },
+                async handleLocalNodeInfoEvent(event) {
+    
+                    if (App.state.isLocalNodeInfoProcessing) {
+                        console.log("SSE: local_node_info processing already in progress. Skipping this event.");
+                        return;
+                    }
+                    App.state.isLocalNodeInfoProcessing = true;
+                    console.log("SSE: Received local_node_info update event. Starting processing...");
+    
+                    try {
+                        const localInfo = JSON.parse(event.data);
+                        let oldNodeId = App.state.currentUserNodeId;
+                        let oldChannelsJsonString = JSON.stringify(
+                            Object.values(App.state.availableChannels)
+                                .map(ch => ({ index: ch.index, settings: { name: ch.name }, role: ch.role }))
+                                .sort((a, b) => a.index - b.index)
+                        );
+    
+                        if (localInfo?.node_id) {
+                            App.state.currentUserNodeId = localInfo.node_id;
+                            App.state.nodes[App.state.currentUserNodeId] = {
+                                ...App.state.nodes[App.state.currentUserNodeId],
+                                ...localInfo,
+                                node_id: App.state.currentUserNodeId
+                            };
+                        }
+    
+                        if (App.state.currentUserNodeId !== oldNodeId) {
+                            console.log(`Local node ID changed/confirmed via SSE: ${App.state.currentUserNodeId}.`);
+                            App.ui.updateAllMessageStyling();
+                        }
+    
+                        const newChannelsArray = localInfo?.channels_json ? JSON.parse(localInfo.channels_json) : [];
+                        const newChannelsJsonString = JSON.stringify(
+                            newChannelsArray
+                                .map(ch => ({ index: ch.index, settings: { name: ch.settings?.name }, role: ch.role }))
+                                .sort((a, b) => a.index - b.index)
+                        );
+    
+                        if (newChannelsJsonString !== oldChannelsJsonString) {
+                            console.log("Local info SSE update indicates channel config string changed. Refreshing channel list and UI.");
+                            const previouslySelectedChannelIndex = App.state.selectedChannelIndex;
+    
+                            await App.api.fetchChannels();
+    
+                            if (App.state.selectedChannelIndex !== -1 && App.state.availableChannels[App.state.selectedChannelIndex]) {
+    
+                                const selectedChannelChanged = App.state.selectedChannelIndex !== previouslySelectedChannelIndex;
+    
+                                if (App.state.isInitialLoadComplete || selectedChannelChanged) {
+                                    console.log(`Conditions met for history reload: isInitialLoadComplete=${App.state.isInitialLoadComplete}, selectedChannelChanged=${selectedChannelChanged}. Reloading for channel ${App.state.selectedChannelIndex}.`);
+                                    App.state.isHistoryLoadedForChannel[App.state.selectedChannelIndex] = false;
+                                    App.ui.clearMessages();
+                                    App.state.messageCache.clear();
+                                    App.ui.displaySystemMessage(`Reloading messages for ${App.state.availableChannels[App.state.selectedChannelIndex]?.name || 'selected channel'} due to config update/switch...`);
+                                    await App.api.fetchChannelData(App.state.selectedChannelIndex);
+                                } else {
+                                    console.log(`Channel config for current channel ${App.state.selectedChannelIndex} updated during initial setup, but selected channel index unchanged. History reload deferred.`);
+                                    App.ui.updateChatTitle(); 
+                                }
+                            } else if (App.state.selectedChannelIndex === -1) {
+                                App.ui.clearMessages();
+                                App.ui.displaySystemMessage("No valid channels available after configuration update.");
+                                App.ui.updateChatTitle();
+                            }
+                        } else {
+                            console.log("Local info SSE update received, but channel configuration string is unchanged.");
+                        }
+                    } catch (e) {
+                        console.error('Error processing "local_node_info" event:', e, event.data);
+                    } finally {
+                        App.state.isLocalNodeInfoProcessing = false; 
+                        console.log("SSE: local_node_info processing finished.");
+                    }
+                }
+            },
+    
+            utils: {
+                getNodeIdHue(nodeId) {
+                    try {
+                        if (!nodeId || nodeId === App.config.UNKNOWN_USER_ID || !String(nodeId).startsWith('!')) {
+                            return App.config.DEFAULT_NODE_ID_HUE;
+                        }
+                        const idHex = String(nodeId).substring(1);
+                        let hash = 0;
+                        if (idHex.length === 0) return App.config.DEFAULT_NODE_ID_HUE;
+                        for (let i = 0; i < idHex.length; i++) {
+                            hash = idHex.charCodeAt(i) + ((hash << 5) - hash);
+                            hash = hash & hash;
+                        }
+                        return Math.abs(hash % 360);
+                    } catch {
+                        return App.config.DEFAULT_NODE_ID_HUE;
+                    }
+                },
+                getNodeAccentColor(nodeId) {
+                    const hue = this.getNodeIdHue(nodeId);
+                    return `hsl(${hue}, 70%, 55%)`;
+                },
+                getNodeName(nodeId) {
+                    try {
+                        const node = App.state.nodes[nodeId];
+                        const idString = String(nodeId || '');
+                        let defaultName = idString.startsWith('!') ? idString : (idString ? `!${idString}`: 'Unknown Node');
+    
+                        if (!node || idString === App.config.UNKNOWN_USER_ID) {
+                            return defaultName;
+                        }
+    
+                        const userInfo = node.user;
+                        let name = null;
+                        if (userInfo) {
+                            name = userInfo.shortName?.trim() || userInfo.longName?.trim();
+                        }
+                        if (!name && node.radio && node.radio.chipType) {
+                           name = node.radio.chipType;
+                        }
+                        if (!name) {
+                            name = node.short_name?.trim() || node.long_name?.trim();
+                        }
+                        return name || defaultName;
+                    } catch {
+                        return String(nodeId || 'ErrorNode');
+                    }
+                },
+                getNodeInitials(nodeId) {
+                    try {
+                        const name = this.getNodeName(nodeId);
+                        const idStr = String(nodeId || '');
+    
+                        if (name === idStr || name === `!${idStr}` || name === 'Unknown Node' || name === 'Unnamed Node' || name === App.config.UNKNOWN_USER_ID || name.length <= 2) {
+                            const hexPart = idStr.startsWith('!') ? idStr.substring(idStr.length - 2) : idStr.substring(Math.max(0, idStr.length - 2));
+                            return (hexPart || '??').toUpperCase();
+                        }
+    
+                        const words = name.split(/[\s_-]+/).filter(word => word.length > 0);
+                        if (words.length === 0) return '?';
+                        if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+                        return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+                    } catch {
+                        return '??';
+                    }
+                },
+                getSignalStrengthClass(rssi, snr) {
+                    const numRssi = (rssi === undefined || rssi === null) ? -Infinity : Number(rssi);
+                    const numSnr = (snr === undefined || snr === null) ? -Infinity : Number(snr);
+    
+                    if (isNaN(numRssi) || numRssi === -Infinity || numRssi === 0) {
+                        return { class: 'unknown', label: 'Unknown' };
+                    }
+                    if (numRssi > -80 && numSnr > 8) return { class: 'excellent', label: 'Excellent' };
+                    if (numRssi > -95 && numSnr > 4) return { class: 'good', label: 'Good' };
+                    if (numRssi > -110 && numSnr > 0) return { class: 'fair', label: 'Fair' };
+                    return { class: 'poor', label: 'Poor' };
+                },
+                getBatteryLevelClass(batteryLevel) {
+                    const numLevel = (batteryLevel === undefined || batteryLevel === null) ? NaN : Number(batteryLevel);
+                    if (isNaN(numLevel)) {
+                        return { class: 'unknown', icon: 'fa-battery-empty', label: 'N/A'};
+                    }
+                    const level = Math.max(0, Math.min(100, numLevel));
+    
+                    if (level > 80) return { class: 'full', icon: 'fa-battery-full', label: `${level}%` };
+                    if (level > 50) return { class: 'good', icon: 'fa-battery-three-quarters', label: `${level}%` };
+                    if (level > 20) return { class: 'fair', icon: 'fa-battery-half', label: `${level}%` };
+                    return { class: 'low', icon: 'fa-battery-quarter', label: `${level}%` };
+                },
+                formatTime(unixTimestamp) {
+                    try {
+                        if (!unixTimestamp || isNaN(Number(unixTimestamp))) return '';
+                        const date = new Date(Number(unixTimestamp) * 1000);
+                        const now = new Date();
+                        const isToday = date.toDateString() === now.toDateString();
+                        const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+    
+                        if (isToday) {
+                            return date.toLocaleTimeString([], timeOptions);
+                        } else {
+                            const dateOptions = { month: 'short', day: 'numeric' };
+                            return `${date.toLocaleDateString([], dateOptions)} ${date.toLocaleTimeString([], timeOptions)}`;
+                        }
+                    } catch (e) {
+                        console.error("Time formatting error:", e, "Timestamp:", unixTimestamp);
+                        return 'Invalid Time';
+                    }
+                },
+                formatDistance(distanceMeters) {
+                    try {
+                        const distance = Number(distanceMeters);
+                        if (isNaN(distance) || distance < 0) return null;
+                        if (distance < 1000) return `${Math.round(distance)}m`;
+                        return `${(distance / 1000).toFixed(1)}km`;
+                    } catch {
+                        return null;
+                    }
+                },
+                sanitizeText(text) {
+                    try {
+                        if (text === null || typeof text === 'undefined') text = '';
+                        if (typeof text !== 'string') text = String(text);
+                        const temp = document.createElement('div');
+                        temp.textContent = text;
+                        return temp.innerHTML;
+                    } catch {
+                        return String(text || '');
+                    }
+                },
+                getEstimatedDistance(nodeId) {
+                    try {
+                        const node = App.state.nodes[nodeId];
+                        const localNode = App.state.nodes[App.state.currentUserNodeId];
+    
+                        if (!localNode?.position?.latitude || !localNode?.position?.longitude || localNode.position.latitude === 0 || localNode.position.longitude === 0) {
+                            return null;
+                        }
+                        if (!node?.position?.latitude || !node?.position?.longitude || node.position.latitude === 0 || node.position.longitude === 0) {
+                            return null;
+                        }
+    
+                        const lat1 = node.position.latitude;
+                        const lon1 = node.position.longitude;
+                        const lat2 = localNode.position.latitude;
+                        const lon2 = localNode.position.longitude;
+    
+                        const R = 6371e3; 
+                        const φ1 = lat1 * Math.PI/180;
+                        const φ2 = lat2 * Math.PI/180;
+                        const Δφ = (lat2-lat1) * Math.PI/180;
+                        const Δλ = (lon2-lon1) * Math.PI/180;
+    
+                        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                                  Math.cos(φ1) * Math.cos(φ2) *
+                                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    
+                        return Math.round(R * c);
+                    } catch (e) {
+                        return null;
+                    }
+                },
+                getIsMsgFromCurrentUser(senderId) {
+                    if (!App.state.currentUserNodeId || App.state.currentUserNodeId === App.config.UNKNOWN_USER_ID || !senderId) {
+                        return false;
+                    }
+                    const currentUserIdStr = String(App.state.currentUserNodeId).startsWith('!') ? String(App.state.currentUserNodeId) : `!${String(App.state.currentUserNodeId)}`;
+                    const senderIdStr = String(senderId).startsWith('!') ? String(senderId) : `!${String(senderId)}`;
+                    return senderIdStr === currentUserIdStr;
+                },
+                extractTextFromPayload(potentialText) {
+                    let text = '';
+                    if (typeof potentialText === 'string') {
+                        text = potentialText;
+                    } else if (potentialText && typeof potentialText === 'object' && potentialText.type === 'Buffer' && Array.isArray(potentialText.data)) {
+                        try {
+                            text = String.fromCharCode.apply(null, new Uint8Array(potentialText.data));
+                        } catch (e) {
+                            console.warn("Buffer decode failed, treating as non-text data.", e);
+                            text = '[Binary Data]';
+                        }
+                    } else if (potentialText !== null && typeof potentialText !== 'undefined') {
+                        text = String(potentialText);
+                    }
+                    return text;
+                },
+                getNodeBatteryLevel(senderId, decodedPacketPart, telemetryPacketPart) {
+                    let batteryLevel = null;
+                    const nodeDataSource = App.state.nodes[senderId];
+    
+                    const deviceMetricsSource = decodedPacketPart?.telemetry?.deviceMetrics ??
+                                                telemetryPacketPart?.deviceMetrics ??
+                                                nodeDataSource?.deviceMetrics;
+    
+                    if (deviceMetricsSource?.batteryLevel !== undefined && deviceMetricsSource.batteryLevel !== null) {
+                        batteryLevel = deviceMetricsSource.batteryLevel;
+                    } else if (nodeDataSource?.batteryLevel !== undefined && nodeDataSource.batteryLevel !== null) {
+                        batteryLevel = nodeDataSource.batteryLevel;
+                    }
+                    return batteryLevel;
+                }
+            }
+        };
+    
+        document.addEventListener('DOMContentLoaded', () => {
+            App.init();
+        });
+    </script>
+
+</body>
+</html>

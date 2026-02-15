@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rusjp MeshDash</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""></script>
+
+    <link rel="stylesheet" href="/static/styles.css">
+
+    <style>
+        .message-feed {
+            max-height: 3000px;
+            overflow-y: auto;
+            padding: 0.5rem;
+            flex-grow: 1;
+            border-radius: var(--radius-sm);
+            background: rgba(30, 34, 45, 0.1);
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .message-feed::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/static/top_nav.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('nav-placeholder').innerHTML = data;
+                const currentPath = window.location.pathname;
+                const navLinks = document.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    const linkPath = link.getAttribute('href');
+                    if (currentPath === linkPath || (linkPath !== '/' && currentPath.startsWith(linkPath))) {
+                        link.classList.add('active');
+                    }
+                });
+            })
+            .catch(error => console.error('Error loading navigation:', error));
+    });
+    </script>
+    <script src="/static/nav_loader.js" defer></script>
+</head>
+
+<body>
+
+    <div id="nav-placeholder"></div>
+
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-network-wired"></i> Rusjp <span class="highlight">MeshDash</span></h1>
+                <div class="status-container">
+                    <span id="status-indicator" class="status-indicator disconnected"></span>
+                    <span id="status-text">Initializing...</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div id="api-average-display">
+                        <div class="average-item average-item-clickable" onclick="showAveragesChartModal()" title="Click to see history">
+                            <strong><i class="fas fa-signal"></i> Avg Signal:</strong> <span id="api-avg-rssi"><span class="na">...</span></span>
+                        </div>
+                        <div class="average-item average-item-clickable" onclick="showAveragesChartModal()" title="Click to see history">
+                            <strong><i class="fas fa-wave-square"></i> Avg SNR:</strong> <span id="api-avg-snr"><span class="na">...</span></span>
+                        </div>
+                </div>
+                <div class="average-meta" id="api-avg-meta">
+                    <i class="fas fa-info-circle"></i> (from <span id="api-avg-nodes">?</span> nodes, updated <span id="api-avg-time">never</span>)
+                </div>
+                <div id="local-node-info"><i class="fas fa-laptop"></i> Local node: <span class="node-id">N/A</span></div>
+            </div>
+        </header>
+
+        <div class="info-bar" id="stats-info">
+            <div class="info-item"><i class="fas fa-spinner fa-spin"></i> Waiting for session stats...</div>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-microchip"></i> Connected Nodes</h2>
+                    <div class="card-header-controls">
+                        <div id="node-sort-buttons">
+                            <label>Sort by:</label>
+                            <button class="sort-btn active" data-sort-key="last_heard"><i class="fas fa-clock"></i> Last Seen</button>
+                            <button class="sort-btn" data-sort-key="signal"><i class="fas fa-signal"></i> Signal</button>
+                            <button class="sort-btn" data-sort-key="snr"><i class="fas fa-wave-square"></i> SNR</button>
+                            <button class="sort-btn" data-sort-key="name"><i class="fas fa-font"></i> Name</button>
+                            <button class="sort-btn" data-sort-key="messages"><i class="fas fa-comment"></i> Msgs</button>
+                            <button class="sort-btn" data-sort-key="positions"><i class="fas fa-map-marker-alt"></i> Pos</button>
+                            <button class="sort-btn" data-sort-key="telemetry"><i class="fas fa-chart-line"></i> Tel</button>
+                        </div>
+                        <div class="search-container">
+                                <input type="search" id="node-search" placeholder="Search nodes..." aria-label="Search nodes">
+                        </div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="nodes-grid" id="nodes-grid">
+                        <div class="loading-state">
+                            <i class="fas fa-satellite-dish fa-pulse"></i>
+                            <p>Scanning for nodes in the network...</p>
+                        </div>
+                    </div>
+                     <div id="pagination-controls" style="display: none; padding: 10px 0; text-align: center;"> <button id="prevPageBtn" disabled>&laquo; Previous</button>
+                        <span id="pageInfo" style="margin: 0 10px; font-size: 0.9em;">Page <span id="currentPageDisplay">1</span> of <span id="totalPagesDisplay">1</span></span> <button id="nextPageBtn" disabled>Next &raquo;</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-exchange-alt"></i> Live Packet Feed</h2>
+                    <div class="packet-controls">
+                        <span class="packet-counter" id="packet-counter"><i class="fas fa-cube"></i> 0 packets</span>
+                    </div>
+                </div>
+                <div class="card-content" style="padding: 0;">
+                    <div class="message-feed" id="message-feed">
+                        <div class="placeholder-message">
+                            <i class="fas fa-broadcast-tower"></i>
+                            <p>Waiting for packets...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="node-detail-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="node-detail-title"><i class="fas fa-microchip"></i> Node Details</h2>
+                    <button class="close-btn" onclick="hideNodeDetail()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-tabs">
+                        <button class="modal-tab active" data-tab="overview"><i class="fas fa-info-circle"></i> Overview</button>
+                        <button class="modal-tab" data-tab="map"><i class="fas fa-map-marked-alt"></i> Map</button>
+                        <button class="modal-tab" data-tab="telemetry"><i class="fas fa-chart-line"></i> Telemetry</button>
+                        <button class="modal-tab" data-tab="position"><i class="fas fa-location-arrow"></i> Position</button>
+                        <button class="modal-tab" data-tab="messages"><i class="fas fa-comments"></i> Messages</button>
+                        <button class="modal-tab" data-tab="packets"><i class="fas fa-exchange-alt"></i> Live Packets</button>
+                    </div>
+                    <div id="overview-tab" class="tab-content active">
+                        <div id="node-overview" class="overview-grid">
+                            <div class="loading-placeholder"><i class="fas fa-circle-notch fa-spin"></i><p>Loading node information...</p></div>
+                        </div>
+                    </div>
+                    <div id="map-tab" class="tab-content">
+                         <div id="node-detail-map-container" class="map-container">
+                            <div id="node-detail-map"></div>
+                            <div id="map-loading-error"><i class="fas fa-map-pin"></i><p>Node location history not available.</p></div>
+                         </div>
+                    </div>
+                    <div id="telemetry-tab" class="tab-content">
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Time</th><th>Batt</th><th>Volt</th><th>ChUtil</th><th>AirUtil</th><th>Temp</th><th>Humid</th><th>Press</th><th>Gas</th><th>IAQ</th><th>Uptime</th></tr></thead>
+                                <tbody id="node-telemetry-body"><tr><td colspan="11" class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading telemetry data...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="position-tab" class="tab-content">
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Time</th><th>Lat</th><th>Lon</th><th>Alt(MSL)</th><th>Alt(HAE)</th><th>Sats</th><th>Speed</th><th>Track</th><th>PDOP/HDOP</th><th>PrecBits</th><th>Seq#</th></tr></thead>
+                                <tbody id="node-position-body"><tr><td colspan="11" class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading position data...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="messages-tab" class="tab-content">
+                          <div id="node-messages" class="message-feed styled-feed">
+                            <div class="loading-placeholder"><i class="fas fa-comment-dots fa-spin"></i><p>Loading message history...</p></div>
+                          </div>
+                    </div>
+                    <div id="packets-tab" class="tab-content">
+                          <div id="node-packets" class="message-feed styled-feed">
+                            <div class="loading-placeholder"><i class="fas fa-network-wired fa-spin"></i><p>Loading packet data...</p></div>
+                          </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="averages-chart-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-chart-area"></i> Network Average Signal History</h2>
+                    <button class="close-btn" onclick="hideAveragesChartModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div id="modal-chart-container"> <canvas id="modalAverageChart"></canvas>
+                    </div>
+                    <div id="modal-chart-loading" class="loading"> <i class="fas fa-circle-notch fa-spin"></i>
+                        <p>Loading chart data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    
+        <div class="debug-panel" id="debug-panel">
+            <div class="debug-header">
+                <h3><i class="fas fa-terminal"></i> Raw SSE Output</h3>
+                <div class="debug-buttons">
+                    <button class="btn btn-small secondary" onclick="clearDebugOutput()">
+                        <i class="fas fa-eraser"></i> Clear
+                    </button>
+                    <button class="btn btn-small secondary" onclick="closeDebugPanel()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+            <div class="debug-content">
+                <pre id="debug-output"></pre>
+            </div>
+        </div>
+    </div> <script>
+    const MAX_LOG_PACKETS = 200;
+    const MAX_MODAL_HISTORY = 1000;
+    const MAX_DEBUG_LENGTH = 5000;
+    const AVG_API_ENDPOINT = '/api/metrics/averages';
+    const OVERALL_TOTALS_API_ENDPOINT = '/api/counts/totals';
+    const AVG_UPDATE_INTERVAL = 30000;
+    const TOTALS_UPDATE_INTERVAL = 300000;
+    const DEFAULT_CHANNEL_PSK_B64 = "AQ==";
+    const ITEMS_PER_PAGE = 10;
+    const nodesData = {};
+    const packetHistory = {};
+    let localNodeInfo = {};
+    let localNodeFullData = {};
+    let lastStats = {};
+    let overallHistoricalTotals = {};
+    let eventSource = null;
+    let currentSortKey = 'last_heard';
+    let currentSortDirection = 'desc';
+    let modalAverageChart = null;
+    let nodeDetailMapInstance = null;
+    let currentModalNodeId = null;
+    let currentModalPositionHistory = [];
+    let historicalCountFetchPromises = {};
+    let currentPage = 1;
+
+    const STYLE_CONFIG = {
+        signal: { thresholds: [-70, -90, -110], classes: ['excellent', 'good', 'fair', 'poor'], colors: ['--signal-excellent', '--signal-good', '--signal-fair', '--signal-poor'] },
+        snr: { thresholds: [5, 0, -5], classes: ['excellent', 'good', 'fair', 'poor'], colors: ['--signal-excellent', '--signal-good', '--signal-fair', '--signal-poor'] },
+        battery: { thresholds: [75, 50, 25], classes: ['full', 'good', 'fair', 'low'], colors: ['--battery-full', '--battery-good', '--battery-fair', '--battery-low'], icons: { full: 'full', good: 'three-quarters', fair: 'half', low: 'quarter', unknown: 'empty' } },
+        messageTypes: { 'message': { icon: 'fa-comment', colorClass: 'message' }, 'position': { icon: 'fa-location-dot', colorClass: 'position' }, 'telemetry': { icon: 'fa-chart-line', colorClass: 'telemetry' }, 'user-info': { icon: 'fa-user', colorClass: 'user-info' }, 'admin': { icon: 'fa-shield-halved', colorClass: 'admin' }, 'routing': { icon: 'fa-route', colorClass: 'routing' }, 'system': { icon: 'fa-gear', colorClass: 'system' }, 'encrypted': { icon: 'fa-lock', colorClass: 'encrypted' }, 'decrypted': { icon: 'fa-lock-open', colorClass: 'decrypted' }, 'waypoint': { icon: 'fa-map-pin', colorClass: 'waypoint' }, 'unknown': { icon: 'fa-question-circle', colorClass: 'unknown' } }
+    };
+
+    function formatTimestamp(unixTimestamp) { if (unixTimestamp === undefined || unixTimestamp === null || isNaN(unixTimestamp)) return 'N/A'; try { const date = new Date(unixTimestamp * 1000); return date.toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }); } catch (e) { console.warn("Invalid timestamp:", unixTimestamp); return 'Invalid Date'; } }
+    function formatTimeAgo(unixTimestamp) { if (unixTimestamp === undefined || unixTimestamp === null || isNaN(unixTimestamp)) return 'never'; const seconds = Math.floor(Date.now() / 1000 - unixTimestamp); if (isNaN(seconds) || seconds < 0) return 'n/a'; if (seconds < 5) return 'now'; const intervals = [ { label: 'y', seconds: 31536000 }, { label: 'mo', seconds: 2592000 }, { label: 'd', seconds: 86400 }, { label: 'h', seconds: 3600 }, { label: 'm', seconds: 60 } ]; for (const interval of intervals) { const count = Math.floor(seconds / interval.seconds); if (count >= 1) return `${count}${interval.label} ago`; } return `${Math.max(0, seconds)}s ago`; }
+    function formatUptime(seconds) { if (seconds === undefined || seconds === null || isNaN(seconds) || seconds < 0) return 'N/A'; if (seconds < 60) return `${seconds}s`; const d = Math.floor(seconds / (3600 * 24)); const h = Math.floor(seconds % (3600 * 24) / 3600); const m = Math.floor(seconds % 3600 / 60); const s = Math.floor(seconds % 60); let result = ''; if (d > 0) result += `${d}d `; if (h > 0 || d > 0) result += `${h}h `; if (m > 0 || h > 0 || d > 0) result += `${m}m `; result += `${s}s`; return result.trim(); }
+    function sanitizeHTML(str) { if (str === null || str === undefined) return ''; const temp = document.createElement('div'); temp.textContent = String(str); return temp.innerHTML; }
+    function renderCell(value, unit = '', fixed = null, defaultVal = 'N/A') { if (value === undefined || value === null || value === 'N/A' || (typeof value === 'number' && isNaN(value))) { return `<span class="na">${defaultVal}</span>`; } let displayValue = value; if (fixed !== null && typeof value === 'number') { displayValue = value.toFixed(fixed); } return `${sanitizeHTML(displayValue)}${unit}`; }
+    function renderJSON(value) { if (value === undefined || value === null || (typeof value === 'object' && Object.keys(value).length === 0)) { return '<span class="na">N/A</span>'; } try { return `<pre><code>${sanitizeHTML(JSON.stringify(value, null, 2))}</code></pre>`; } catch (e) { return `<pre><code class="error-placeholder">Error rendering JSON: ${sanitizeHTML(e.message)}</code></pre>`; } }
+    function getNodeValue(node, primaryKey, nestedKeys = ['deviceMetrics', 'device_metrics_info', 'user', 'user_info', 'position', 'position_info'], secondaryKey = null) { if (!node) return undefined; if (node[primaryKey] !== undefined && node[primaryKey] !== null) return node[primaryKey]; if (secondaryKey && node[secondaryKey] !== undefined && node[secondaryKey] !== null) return node[secondaryKey]; for (const nested of nestedKeys) { if (node[nested] && typeof node[nested] === 'object' && node[nested] !== null) { if (node[nested][primaryKey] !== undefined && node[nested][primaryKey] !== null) return node[nested][primaryKey]; if (secondaryKey && node[nested][secondaryKey] !== undefined && node[nested][secondaryKey] !== null) return node[nested][secondaryKey]; } } if (node[primaryKey] !== undefined && node[primaryKey] !== null) return node[primaryKey]; return undefined; }
+    function getNodeName(node) { if (!node) return 'Unknown'; const longName = getNodeValue(node, 'longName', ['user', 'user_info'], 'long_name'); const shortName = getNodeValue(node, 'shortName', ['user', 'user_info'], 'short_name'); const nodeId = getNodeValue(node, 'node_id'); const name = longName || shortName; return (name && String(name).trim() !== '') ? name : (nodeId ? `(${nodeId.substring(1)})` : 'Unknown'); }
+    function getInitials(name) { if (!name || typeof name !== 'string' || name === 'N/A' || name.startsWith('(')) return '?'; const parts = name.split(/[\s-_]/); let initials = parts[0] ? parts[0][0] : ''; if (parts.length > 1 && parts[parts.length - 1]) { initials += parts[parts.length - 1][0]; } return initials.toUpperCase() || '?'; }
+    function debounce(func, wait) { let timeout; return function executedFunction(...args) { const later = () => { clearTimeout(timeout); func(...args); }; clearTimeout(timeout); timeout = setTimeout(later, wait); }; }
+
+    function getStyleInfo(type, value) { const config = STYLE_CONFIG[type]; if (value === undefined || value === null || isNaN(value) || !config) { return { class: 'unknown', color: 'var(--text-secondary)' }; } for (let i = 0; i < config.thresholds.length; i++) { if (value >= config.thresholds[i]) { return { class: config.classes[i], color: `var(${config.colors[i]})` }; } } const lastIndex = config.classes.length - 1; return { class: config.classes[lastIndex], color: `var(${config.colors[lastIndex]})` }; }
+    function getMessageTypeInfo(type) { const typeClean = String(type).toLowerCase().replace(/\s+/g, '-'); return STYLE_CONFIG.messageTypes[typeClean] || STYLE_CONFIG.messageTypes['unknown']; }
+
+    function createSignalBars(rssi) { if (rssi === undefined || rssi === null || isNaN(rssi)) { return '<div class="signal-bars unknown"><div class="signal-bar" style="height: 12px;"></div></div><span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.25rem;" class="na">N/A</span>'; } const styleInfo = getStyleInfo('signal', rssi); let activeBars = 0; if (styleInfo.class === 'excellent') activeBars = 4; else if (styleInfo.class === 'good') activeBars = 3; else if (styleInfo.class === 'fair') activeBars = 2; else if (styleInfo.class === 'poor') activeBars = 1; const barHeights = [8, 10, 12, 14]; const barsHtml = barHeights.map((height, idx) => `<div class="signal-bar ${idx < activeBars ? 'active' : ''}" style="height: ${height}px;"></div>`).join(''); return ` <div class="signal-bars ${styleInfo.class}" title="RSSI: ${rssi} dBm"> ${barsHtml} </div> <span style="font-size: 0.75rem; margin-left: 0.2rem;">${rssi}</span> `; }
+    function createBatteryIndicator(batteryLevel) { const styleInfo = getStyleInfo('battery', batteryLevel); const iconSuffix = STYLE_CONFIG.battery.icons[styleInfo.class] || 'empty'; const iconClass = `fa-battery-${iconSuffix}`; return ` <div class="battery-indicator"> <i class="fas ${iconClass} battery-icon ${styleInfo.class}"></i> ${renderCell(batteryLevel, '%')} </div> `; }
+    function renderNodeStatItem(label, valueHtml, title = '') { const titleAttr = title ? `title="${sanitizeHTML(title)}"` : ''; return ` <div class="stat-item" ${titleAttr}> <span class="stat-label">${sanitizeHTML(label)}</span> <div class="stat-value">${valueHtml}</div> </div>`; }
+    function renderNodeCoreStatsHtml(node) { const battery = getNodeValue(node, 'batteryLevel'); const rssi = getNodeValue(node, 'rssi'); const snr = getNodeValue(node, 'snr'); const lastHeard = getNodeValue(node, 'lastHeard', [], 'last_heard'); const messageCount = getNodeValue(node, 'historicalMessageCount'); const positionCount = getNodeValue(node, 'historicalPositionCount'); const telemetryCount = getNodeValue(node, 'historicalTelemetryCount'); const msgCountDisplay = messageCount === undefined ? '<i class="fas fa-spinner fa-spin fa-xs"></i>' : renderCell(messageCount); const posCountDisplay = positionCount === undefined ? '<i class="fas fa-spinner fa-spin fa-xs"></i>' : renderCell(positionCount); const telCountDisplay = telemetryCount === undefined ? '<i class="fas fa-spinner fa-spin fa-xs"></i>' : renderCell(telemetryCount); return ` <div class="node-core-stats"> ${renderNodeStatItem('Battery', createBatteryIndicator(battery) + renderCell(getNodeValue(node, 'voltage'), 'V', 2), 'Battery Level / Voltage')} ${renderNodeStatItem('Signal', createSignalBars(rssi), 'Received Signal Strength Indicator')} ${renderNodeStatItem('SNR', renderCell(snr, ' dB', 1), 'Signal-to-Noise Ratio')} ${renderNodeStatItem('Msgs', `<i class="fas fa-comments"></i>${msgCountDisplay}`, 'Text Messages Sent (This Node - Historical)')} ${renderNodeStatItem('Pos', `<i class="fas fa-map-marker-alt"></i>${posCountDisplay}`, 'Position Updates Sent (This Node - Historical)')} ${renderNodeStatItem('Tel', `<i class="fas fa-gauge"></i>${telCountDisplay}`, 'Telemetry Reports Sent (This Node - Historical)')} ${renderNodeStatItem('Last Heard', formatTimeAgo(lastHeard), `Last packet heard from this node (${formatTimestamp(lastHeard)})`)} </div>`; }
+    function renderNodeSecondaryInfoHtml(node) { const hwModel = getNodeValue(node, 'hwModel', ['user'], 'hw_model'); const uptimeSeconds = getNodeValue(node, 'uptimeSeconds'); const posInfo = node.position_info ?? node.position; const locSource = posInfo?.locationSource ?? posInfo?.location_source; const lat = getNodeValue(node, 'latitude', ['position', 'position_info']); const lon = getNodeValue(node, 'longitude', ['position', 'position_info']); const alt = getNodeValue(node, 'altitude', ['position', 'position_info']); let locationInfo = '<span class="na">N/A</span>'; let mapLink = ''; if (typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon)) { locationInfo = `${lat.toFixed(5)}°, ${lon.toFixed(5)}°`; if (typeof alt === 'number') { locationInfo += ` (${renderCell(alt, 'm', 0)})`; } mapLink = ` <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}" target="_blank" title="View on OpenStreetMap" onclick="event.stopPropagation();"><i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>`; } return ` <div class="node-secondary-info"> <div><strong>HW:</strong> <span title="${renderCell(hwModel)}">${renderCell(hwModel)}</span></div> <div><strong>Loc Src:</strong> <span title="${renderCell(locSource)}">${renderCell(locSource, '', null, '--')}</span></div> <div><strong>Location:</strong> ${locationInfo}${mapLink}</div> ${uptimeSeconds !== undefined ? `<div><strong>Uptime:</strong> ${renderCell(formatUptime(uptimeSeconds))}</div>` : ''} </div>`; }
+    function renderNodeMapPlaceholderHtml(node) { const lat = getNodeValue(node, 'latitude', ['position', 'position_info']); const lon = getNodeValue(node, 'longitude', ['position', 'position_info']); const nodeId = node.node_id; if (typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon)) { return ` <div class="node-map-container map-placeholder map-needs-loading" data-lat="${lat}" data-lon="${lon}" title="Map loading..."> <i class="fas fa-spinner fa-spin"></i> <span>Loading Map...</span> </div>`; } else { const mapContainerId = `static-map-${nodeId.replace(/[^a-zA-Z0-9]/g, '')}`; return ` <div class="node-map-container static-map-placeholder needs-static-map-init" id="${mapContainerId}" title="Node location unavailable"> <div class="map-placeholder-text" style="position: absolute; top: 5px; left: 5px; font-size: 0.7em; color: rgba(200,200,200,0.7); background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 2px; z-index: 401;">No Location</div> </div>`; } }
+
+    function base64ToArrayBuffer(base64) { try { const binary_string = window.atob(base64); const len = binary_string.length; const bytes = new Uint8Array(len); for (let i = 0; i < len; i++) { bytes[i] = binary_string.charCodeAt(i); } return bytes.buffer; } catch (e) { console.error("Base64 decode error:", e); return null; } }
+    function arrayBufferToBase64(buffer) { let binary = ''; const bytes = new Uint8Array(buffer); const len = bytes.byteLength; for (let i = 0; i < len; i++) { binary += String.fromCharCode(bytes[i]); } return window.btoa(binary); }
+    function numToUint32LE(num) { const buffer = new ArrayBuffer(4); const view = new DataView(buffer); view.setUint32(0, num, true); return new Uint8Array(buffer); }
+    function generateNonce(packetId, fromNodeNum) { const nonce = new Uint8Array(12); const packetIdBytes = numToUint32LE(packetId); const fromNodeBytes = numToUint32LE(fromNodeNum); if (packetIdBytes.length === 4 && fromNodeBytes.length === 4) { nonce.set(packetIdBytes, 4); nonce.set(fromNodeBytes, 8); } else { console.error("Error generating nonce: Invalid byte lengths for IDs."); return null; } return nonce; }
+    function tryDecodeProtobufAsText(decryptedBuffer) { try { const decoder = new TextDecoder('utf-8', { fatal: true }); return decoder.decode(decryptedBuffer); } catch (e) { return null; } }
+    async function attemptDecrypt(encryptedPayloadBase64, packetId, fromNodeNum, pskBase64) { if (!window.crypto || !window.crypto.subtle) { console.warn("Web Crypto API not available."); return { success: false, error: "Web Crypto unavailable" }; } if (!packetId || fromNodeNum === undefined || fromNodeNum === null) { return { success: false, error: "Missing PacketID or FromNodeNum for nonce" }; } try { const pskBuffer = base64ToArrayBuffer(pskBase64); const dataBuffer = base64ToArrayBuffer(encryptedPayloadBase64); if (!pskBuffer || !dataBuffer) { return { success: false, error: "Base64 decoding failed (PSK or Data)" }; } const derivedKeyBuffer = await window.crypto.subtle.digest('SHA-256', pskBuffer); const nonce = generateNonce(packetId, fromNodeNum); if (!nonce) { return { success: false, error: "Nonce generation failed" }; } const cryptoKey = await window.crypto.subtle.importKey('raw', derivedKeyBuffer, { name: 'AES-GCM' }, false, ['decrypt']); const decryptedBuffer = await window.crypto.subtle.decrypt( { name: 'AES-GCM', iv: nonce }, cryptoKey, dataBuffer ); const decryptedText = tryDecodeProtobufAsText(decryptedBuffer); return { success: true, text: decryptedText, buffer: decryptedBuffer }; } catch (error) { return { success: false, error: error.message }; } }
+
+    let mapLoadQueue = []; let isMapLoadingScheduled = false; function scheduleMapLoading() { if (!isMapLoadingScheduled && mapLoadQueue.length > 0) { isMapLoadingScheduled = true; requestAnimationFrame(loadBatchOfMaps); } } function loadBatchOfMaps() { const batchSize = 3; let loadedCount = 0; while (loadedCount < batchSize && mapLoadQueue.length > 0) { const element = mapLoadQueue.shift(); if (element && element.classList.contains('map-needs-loading')) { const lat = parseFloat(element.dataset.lat); const lon = parseFloat(element.dataset.lon); if (!isNaN(lat) && !isNaN(lon)) { const deltaLon = 0.004; const deltaLat = 0.002; const lon1 = lon - deltaLon; const lat1 = lat - deltaLat; const lon2 = lon + deltaLon; const lat2 = lat + deltaLat; const iframeSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${lon1}%2C${lat1}%2C${lon2}%2C${lat2}&layer=mapnik&marker=${lat}%2C${lon}`; element.innerHTML = `<iframe width="100%" height="120" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="${iframeSrc}" style="border: 0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`; element.classList.remove('map-needs-loading', 'map-placeholder'); loadedCount++; } else { element.innerHTML = '<span class="error-placeholder">Error loading map data.</span>'; element.classList.remove('map-needs-loading'); } } } if (mapLoadQueue.length > 0) { requestAnimationFrame(loadBatchOfMaps); } else { isMapLoadingScheduled = false; } } function queueMapsForLoading() { const pendingPlaceholders = document.querySelectorAll('.map-needs-loading'); const newPlaceholders = Array.from(pendingPlaceholders).filter(el => !mapLoadQueue.includes(el)); if (newPlaceholders.length > 0) { mapLoadQueue.push(...newPlaceholders); scheduleMapLoading(); } } function initializeStaticPlaceholderMap(elementId) { const mapContainer = document.getElementById(elementId); if (!mapContainer || mapContainer.dataset.mapInitialized) { return; } try { const map = L.map(elementId, { dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, trackResize: false, zoomControl: false, attributionControl: false }).setView([53.8, -2.4], 4); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {}).addTo(map); mapContainer.dataset.mapInitialized = 'true'; mapContainer.classList.remove('needs-static-map-init'); } catch (error) { console.error(`Failed to initialize static Leaflet map for ${elementId}:`, error); mapContainer.innerHTML = '<span class="error-placeholder" style="font-size: 0.8em;">Map Init Failed</span>'; mapContainer.classList.remove('needs-static-map-init'); } }
+
+    function updateStatus(status) { const statusIndicator = document.getElementById('status-indicator'); const statusText = document.getElementById('status-text'); const safeStatus = status?.toLowerCase() ?? 'disconnected'; if(statusIndicator) statusIndicator.className = 'status-indicator ' + safeStatus; if(statusText) statusText.textContent = status ?? 'Unknown'; }
+    function updateLocalNodeHeader() { const infoElement = document.getElementById('local-node-info'); if (!infoElement) return; const nodeToDisplay = (localNodeFullData && localNodeFullData.node_id) ? localNodeFullData : localNodeInfo; if (nodeToDisplay?.node_id) { const name = getNodeName(nodeToDisplay); const hw = getNodeValue(nodeToDisplay, 'hwModel', ['user'], 'hw_model') ?? getNodeValue(nodeToDisplay, 'hardware') ?? 'N/A'; const fw = getNodeValue(nodeToDisplay, 'firmwareVersion', ['user'], 'firmware_version') ?? getNodeValue(nodeToDisplay, 'firmware') ?? 'N/A'; const batt = getNodeValue(nodeToDisplay, 'batteryLevel') ?? getNodeValue(nodeToDisplay, 'battery'); const volt = getNodeValue(nodeToDisplay, 'voltage'); const heard = getNodeValue(nodeToDisplay, 'lastHeard', [], 'last_heard'); infoElement.innerHTML = ` <strong>Local:</strong> ${sanitizeHTML(name)} (${renderCell(nodeToDisplay.node_id)})<br> <span title="Hardware Model"><strong>HW:</strong> ${renderCell(hw)}</span> | <span title="Firmware Version"><strong>FW:</strong> ${renderCell(fw)}</span> | <span title="Battery Level / Voltage">${createBatteryIndicator(batt)} ${renderCell(volt, 'V', 2)}</span> | <span title="Last Active"><i class="fas fa-clock"></i> ${formatTimeAgo(heard)}</span> `; } else { infoElement.innerHTML = `<strong>Local Node:</strong> <span class="na">N/A</span>`; } }
+
+    function updateStats(sessionStats, overallTotals) {
+        const statsElement = document.getElementById('stats-info');
+        const ss = sessionStats || {};
+        const ot = overallTotals || {};
+
+        if (!statsElement) return;
+
+        const packets = ss.packets_received_session ?? 0;
+        const nodes = Object.keys(nodesData).length;
+        const msgs = ot.total_messages ?? 0;
+        const pos = ot.total_positions ?? 0;
+        const tel = ot.total_telemetry ?? 0;
+
+        const user = ss.user_info_updates_session ?? 0;
+        const waypoint = ss.waypoint_updates_session ?? 0;
+        const other = ss.other_packets_session ?? 0;
+        const channels = ss.channels_seen_session ?? '?';
+        const sessionStart = ss.start_time;
+        const uptime = sessionStart ? formatTimeAgo(sessionStart) : 'N/A';
+        const elapsed = ss.elapsed_time_session ? (ss.elapsed_time_session / 1).toFixed(0) + 's' : 'N/A';
+
+        const hasAnyData = Object.keys(ss).length > 0 || Object.keys(ot).length > 0;
+
+        if (!hasAnyData) {
+            statsElement.innerHTML = '<div class="info-item"><i class="fas fa-spinner fa-spin"></i> Waiting for stats...</div>';
+            return;
+        }
+
+        statsElement.innerHTML = `
+            <div class="info-item" title="Total packets received (Session)"><i class="fas fa-receipt"></i><strong>Tot:</strong><span class="val">${packets}</span></div>
+            <div class="info-item" title="Unique nodes known (Client Cache)"><i class="fas fa-network-wired"></i><strong>Nodes:</strong><span class="val">${nodes}</span></div>
+            <div class="info-item" title="Text messages Sent (DB Total)"><i class="fas fa-comments"></i><strong>Msg:</strong><span class="val">${msgs}</span></div>
+            <div class="info-item" title="Position updates Sent (DB Total)"><i class="fas fa-map-marker-alt"></i><strong>Pos:</strong><span class="val">${pos}</span></div>
+            <div class="info-item" title="Telemetry reports Sent (DB Total)"><i class="fas fa-gauge"></i><strong>Tele:</strong><span class="val">${tel}</span></div>
+            <div class="info-item" title="User info updates (Session)"><i class="fas fa-user"></i><strong>User:</strong><span class="val">${user}</span></div>
+            <div class="info-item" title="Waypoints (Session)"><i class="fas fa-map-pin"></i><strong>Waypt:</strong><span class="val">${waypoint}</span></div>
+            <div class="info-item" title="Other packet types (Session)"><i class="fas fa-question-circle"></i><strong>Other:</strong><span class="val">${other}</span></div>
+            <div class="info-item" title="Unique channels heard (Session)"><i class="fas fa-broadcast-tower"></i><strong>Chs:</strong><span class="val">${channels}</span></div>
+            <div class="info-item" title="Time since connection start"><i class="fas fa-clock"></i><strong>Session:</strong><span class="val">${uptime}</span></div>
+            <div class="info-item" title="Elapsed seconds"><i class="fas fa-hourglass-half"></i><strong>Elapsed:</strong><span class="val">${elapsed}</span></div>
+        `;
+    }
+
+    async function fetchAndApplyOverallTotals() {
+        try {
+            const response = await fetch(OVERALL_TOTALS_API_ENDPOINT);
+            if (!response.ok) {
+                console.warn(`Failed to fetch overall totals: ${response.status}`);
+            } else {
+                const data = await response.json();
+                overallHistoricalTotals = data || {};
+            }
+        } catch (error) {
+            console.error("Error fetching overall totals:", error);
+        } finally {
+            updateStats(lastStats, overallHistoricalTotals);
+        }
+    }
+
+    async function fetchHistoricalCounts(nodeId) {
+        if (!nodeId) return { messages: 0, positions: 0, telemetry: 0 };
+        if (historicalCountFetchPromises[nodeId]) { return historicalCountFetchPromises[nodeId]; }
+        const _fetchCount = async (itemType) => { const url = `/api/nodes/${encodeURIComponent(nodeId)}/count/${itemType}`; try { const response = await fetch(url); if (!response.ok) { if (response.status !== 404) { console.warn(`Failed to fetch count for ${nodeId} (${itemType}): ${response.status}`); } return 0; } const data = await response.json(); return data?.count ?? 0; } catch (error) { console.error(`Error fetching count for ${nodeId} (${itemType}):`, error); return NaN; } };
+        const fetchPromise = (async () => { let counts = { messages: NaN, positions: NaN, telemetry: NaN }; try { const [msgCount, posCount, telCount] = await Promise.all([ _fetchCount("messages_sent"), _fetchCount("positions"), _fetchCount("telemetry") ]); counts = { messages: isNaN(msgCount) ? 0 : msgCount, positions: isNaN(posCount) ? 0 : posCount, telemetry: isNaN(telCount) ? 0 : telCount }; if (nodesData[nodeId]) { nodesData[nodeId].historicalMessageCount = counts.messages; nodesData[nodeId].historicalPositionCount = counts.positions; nodesData[nodeId].historicalTelemetryCount = counts.telemetry; } } catch (error) { console.error(`Overall error fetching historical counts for ${nodeId}:`, error); if (nodesData[nodeId]) { nodesData[nodeId].historicalMessageCount = 0; nodesData[nodeId].historicalPositionCount = 0; nodesData[nodeId].historicalTelemetryCount = 0; } } finally { delete historicalCountFetchPromises[nodeId]; } return counts; })();
+        historicalCountFetchPromises[nodeId] = fetchPromise; return fetchPromise;
+    }
+
+    function createNodeCard(nodeId, node) { const name = getNodeName(node); return ` <div class="node-card" data-node-id="${nodeId}" data-node-name="${sanitizeHTML(name)}" onclick="showNodeDetail('${nodeId}')"> <div class="node-header"> <div class="node-avatar">${getInitials(name)}</div> <div class="node-info"> <div class="node-name" title="${sanitizeHTML(name)}">${sanitizeHTML(name)}</div> <div class="node-id">${sanitizeHTML(nodeId)}</div> </div> </div> ${renderNodeCoreStatsHtml(node)} ${renderNodeSecondaryInfoHtml(node)} ${renderNodeMapPlaceholderHtml(node)} </div>`; }
+
+    function getNodeSortValue(node, key) { if (!node) return null; switch (key) { case 'last_heard': return getNodeValue(node, 'lastHeard', [], 'last_heard') ?? 0; case 'signal': return getNodeValue(node, 'rssi') ?? -Infinity; case 'snr': return getNodeValue(node, 'snr') ?? -Infinity; case 'name': return getNodeName(node).toLowerCase(); case 'messages': return getNodeValue(node, 'historicalMessageCount') ?? 0; case 'positions': return getNodeValue(node, 'historicalPositionCount') ?? 0; case 'telemetry': return getNodeValue(node, 'historicalTelemetryCount') ?? 0; default: return 0; } }
+    function handleSortClick(event) { const targetButton = event.target.closest('.sort-btn'); if (!targetButton) return; const newSortKey = targetButton.dataset.sortKey; if (!newSortKey) return; if (newSortKey === currentSortKey) { currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc'; } else { currentSortKey = newSortKey; const descKeys = ['last_heard', 'signal', 'snr', 'messages', 'positions', 'telemetry']; currentSortDirection = descKeys.includes(currentSortKey) ? 'desc' : 'asc'; } document.querySelectorAll('#node-sort-buttons .sort-btn').forEach(btn => { btn.classList.remove('active'); const icon = btn.querySelector('i.fas'); if (icon) icon.remove(); if (btn.dataset.sortKey === currentSortKey) { btn.classList.add('active'); const iconClass = currentSortDirection === 'asc' ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short'; btn.insertAdjacentHTML('beforeend', ` <i class="fas ${iconClass}"></i>`); } }); currentPage = 1; updateNodesGrid('full'); }
+    function updateNodesGrid(updateType = 'full', updatedNodeId = null) {
+        const nodesGrid = document.getElementById('nodes-grid');
+        const paginationControls = document.getElementById('pagination-controls');
+        if (!nodesGrid || !paginationControls) return;
+        const searchInput = document.getElementById('node-search');
+        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const allNodeIds = Object.keys(nodesData);
+        const filteredNodeIds = allNodeIds.filter(nodeId => { const node = nodesData[nodeId]; if (!node) return false; const name = getNodeName(node).toLowerCase(); const idLower = nodeId.toLowerCase(); return searchTerm === '' || name.includes(searchTerm) || idLower.includes(searchTerm); });
+        const sortedNodeIds = filteredNodeIds.sort((a, b) => { const nodeA = nodesData[a]; const nodeB = nodesData[b]; const valueA = getNodeSortValue(nodeA, currentSortKey); const valueB = getNodeSortValue(nodeB, currentSortKey); const valAIsNum = typeof valueA === 'number' && !isNaN(valueA); const valBIsNum = typeof valueB === 'number' && !isNaN(valueB); const numericSort = ['last_heard', 'signal', 'snr', 'messages', 'positions', 'telemetry'].includes(currentSortKey); let effectiveA = valueA; let effectiveB = valueB; if (numericSort) { effectiveA = valAIsNum ? valueA : (currentSortDirection === 'desc' ? -Infinity : Infinity); effectiveB = valBIsNum ? valueB : (currentSortDirection === 'desc' ? -Infinity : Infinity); } let comparison = 0; if (typeof effectiveA === 'string' && typeof effectiveB === 'string') { comparison = effectiveA.localeCompare(effectiveB); } else { if (effectiveA < effectiveB) { comparison = -1; } else if (effectiveA > effectiveB) { comparison = 1; } } return currentSortDirection === 'desc' ? (comparison * -1) : comparison; });
+        const totalNodes = sortedNodeIds.length;
+        const totalPages = Math.ceil(totalNodes / ITEMS_PER_PAGE);
+        currentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        const nodesToDisplayIds = sortedNodeIds.slice(startIndex, endIndex);
+        nodesGrid.innerHTML = '';
+        mapLoadQueue = [];
+        isMapLoadingScheduled = false;
+        if (nodesToDisplayIds.length === 0) { if (searchTerm !== '') { nodesGrid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary);">No nodes found matching "${sanitizeHTML(searchTerm)}".</div>`; } else { nodesGrid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary);">Waiting for node data...</div>'; } paginationControls.style.display = 'none';
+        } else { const countPromises = []; nodesToDisplayIds.forEach(nodeId => { const node = nodesData[nodeId]; if (node) { nodesGrid.insertAdjacentHTML('beforeend', createNodeCard(nodeId, node)); if (node.historicalMessageCount === undefined || node.historicalPositionCount === undefined || node.historicalTelemetryCount === undefined) { countPromises.push(fetchHistoricalCounts(nodeId)); } } }); queueMapsForLoading(); const staticMapPlaceholders = nodesGrid.querySelectorAll('.needs-static-map-init'); staticMapPlaceholders.forEach(placeholder => initializeStaticPlaceholderMap(placeholder.id)); if(countPromises.length > 0) { Promise.allSettled(countPromises).then(() => { updateNodesGrid('full'); }); } const pageInfoSpan = document.getElementById('pageInfo'); const currentPageEl = document.getElementById('currentPageDisplay'); const totalPagesEl = document.getElementById('totalPagesDisplay'); const prevBtn = document.getElementById('prevPageBtn'); const nextBtn = document.getElementById('nextPageBtn'); if(pageInfoSpan && currentPageEl && totalPagesEl && prevBtn && nextBtn) { currentPageEl.textContent = currentPage; totalPagesEl.textContent = totalPages; prevBtn.disabled = (currentPage <= 1); nextBtn.disabled = (currentPage >= totalPages); paginationControls.style.display = 'block'; } }
+        const modal = document.getElementById('node-detail-modal'); const activeNodeId = modal.classList.contains('active') ? modal.dataset.activeNodeId : null; if (activeNodeId && !nodesToDisplayIds.includes(activeNodeId) && !sortedNodeIds.includes(activeNodeId)) { if (!allNodeIds.includes(activeNodeId) || !filteredNodeIds.includes(activeNodeId)){ hideNodeDetail(); } } else if (activeNodeId && nodesData[activeNodeId] && modal.classList.contains('active')) { loadNodeOverview(activeNodeId); }
+    }
+    function setupSearchFilter() { const searchInput = document.getElementById('node-search'); if (searchInput) { const debouncedUpdate = debounce(() => { currentPage = 1; updateNodesGrid('full'); }, 300); searchInput.addEventListener('input', debouncedUpdate); } else { console.warn("Node search input element not found."); } }
+    function setupPaginationControls() { const prevBtn = document.getElementById('prevPageBtn'); const nextBtn = document.getElementById('nextPageBtn'); if (prevBtn) { prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; updateNodesGrid('full'); } }); } if (nextBtn) { nextBtn.addEventListener('click', () => { const totalNodes = Object.keys(nodesData).filter(nodeId => { const node = nodesData[nodeId]; if (!node) return false; const searchInput = document.getElementById('node-search'); const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : ''; const name = getNodeName(node).toLowerCase(); const idLower = nodeId.toLowerCase(); return searchTerm === '' || name.includes(searchTerm) || idLower.includes(searchTerm); }).length; const totalPages = Math.ceil(totalNodes / ITEMS_PER_PAGE); if (currentPage < totalPages) { currentPage++; updateNodesGrid('full'); } }); } }
+
+    function renderPacketDetailsMessage(decoded) { return `Text: <code>${sanitizeHTML(decoded?.payload ?? '(empty)')}</code>`; }
+    function renderPacketDetailsPosition(decoded) { const pos = decoded?.position; if (!pos) return '(Invalid Position Data)'; const lat = pos.latitude ?? (pos.latitudeI / 1e7); const lon = pos.longitude ?? (pos.longitudeI / 1e7); let details = `Pos: ${renderCell(lat, '', 5)}°, ${renderCell(lon, '', 5)}°, Alt ${renderCell(pos.altitude, 'm')}`; if (pos.altitudeHae !== undefined) details += ` (HAE ${renderCell(pos.altitudeHae, 'm')})`; if (pos.seqNumber !== undefined) details += `, Seq ${renderCell(pos.seqNumber)}`; return details; }
+    function renderPacketDetailsTelemetry(decoded) { let details = ''; if (decoded?.telemetry?.deviceMetrics) { const m = decoded.telemetry.deviceMetrics; details += `Dev: Batt ${renderCell(m.batteryLevel, '%')} V ${renderCell(m.voltage, '', 2)} Ch% ${renderCell(m.channelUtilization, '', 1)} Air% ${renderCell(m.airUtilTx, '', 1)} `; } if (decoded?.telemetry?.environmentMetrics) { const m = decoded.telemetry.environmentMetrics; details += `Env: ${renderCell(m.temperature, '°C', 1)} ${renderCell(m.relativeHumidity, '%', 0)} ${renderCell(m.barometricPressure, 'hPa', 0)} `; } if (decoded?.telemetry?.powerMetrics) { const p = decoded.telemetry.powerMetrics; details += `Pwr: ${renderCell(p.ch1Voltage, 'V', 2)} ${renderCell(p.ch1Current, 'A', 2)} `; } return details.trim() || '(Empty Telemetry)'; }
+    function renderPacketDetailsUserInfo(decoded) { const user = decoded?.user; if (!user) return '(Invalid User Data)'; return `User: ${renderCell(user.longName ?? user.shortName)} (${renderCell(user.hwModel)})`; }
+    function renderPacketDetailsWaypoint(decoded) { const wp = decoded?.waypoint; if (!wp) return '(Invalid Waypoint Data)'; return `Waypoint: ${renderCell(wp.name)} ID:${renderCell(wp.id)} Exp:${renderCell(formatTimestamp(wp.expire))}`; }
+    function renderPacketDetailsRouting(decoded) { const r = decoded?.routing; if (!r) return 'Routing Packet'; if(r.route) return `Traceroute Resp (Route: ${r.route.join('→')})`; if(r.errorReason) return `Routing Err: ${r.errorReason}`; return 'Routing Packet'; }
+    function renderPacketDetailsAdmin(decoded) { return `Admin Packet: ${JSON.stringify(decoded?.admin ?? {})}`; }
+    function renderPacketDetailsData(decoded) { let details = `Data (Port: ${renderCell(decoded?.portnum)})`; if(decoded?.payload) { let payloadStr = decoded.payload; if (typeof payloadStr === 'string' && payloadStr.startsWith('base64:')) { try { payloadStr = atob(payloadStr.substring(7)); } catch (e) { payloadStr = '(Cannot decode base64)'; } } else if(typeof payloadStr === 'object') { payloadStr = JSON.stringify(payloadStr); } details += `: ${typeof payloadStr === 'string' ? `<code>${sanitizeHTML(payloadStr)}</code>` : '(Binary data)'}`; } return details; }
+    async function renderPacketDetails(packet) { const type = packet.app_packet_type ?? 'Unknown'; const decoded = packet.decoded; let details = ''; let decryptionResult = null; if (type === 'Encrypted' && packet.encrypted && packet.id && packet.from) { decryptionResult = await attemptDecrypt(packet.encrypted, packet.id, packet.from, DEFAULT_CHANNEL_PSK_B64); if (decryptionResult.success) { const decryptedType = 'Decrypted'; const text = decryptionResult.text; details = text !== null ? `✅ Decrypted Text: <code>${sanitizeHTML(text)}</code>` : `⚠️ Decrypted (Non-text Protobuf?)`; return { details, effectiveType: decryptedType }; } else { details = `🔒 Encrypted Data (ID: ${renderCell(packet.id)}, Error: ${decryptionResult.error})`; return { details, effectiveType: type }; } } switch (type) { case 'Message': details = renderPacketDetailsMessage(decoded); break; case 'Position': details = renderPacketDetailsPosition(decoded); break; case 'Telemetry': details = renderPacketDetailsTelemetry(decoded); break; case 'User Info': details = renderPacketDetailsUserInfo(decoded); break; case 'Waypoint': details = renderPacketDetailsWaypoint(decoded); break; case 'Routing': details = renderPacketDetailsRouting(decoded); break; case 'Admin': details = renderPacketDetailsAdmin(decoded); break; default: if (decoded?.portnum) { details = renderPacketDetailsData(decoded); } else { details = '(Unknown Packet Structure)'; } } return { details, effectiveType: type }; }
+
+    async function addMessageToFeed(packet) { if (!packet) return; const messageFeed = document.getElementById('message-feed'); if (!messageFeed) return; const placeholder = messageFeed.querySelector('.placeholder-message'); if (placeholder) placeholder.remove(); const nodeId = packet.fromId; if (nodeId) { if (!packetHistory[nodeId]) packetHistory[nodeId] = []; packetHistory[nodeId].unshift(packet); if (packetHistory[nodeId].length > MAX_MODAL_HISTORY) packetHistory[nodeId].pop(); } const fromNode = nodesData[packet.fromId]; const fromName = fromNode ? getNodeName(fromNode) : packet.fromId || 'Unknown Source'; const timestamp = formatTimestamp(packet.timestamp); const { details, effectiveType } = await renderPacketDetails(packet); const typeInfo = getMessageTypeInfo(effectiveType); const messageItem = document.createElement('div'); messageItem.className = 'message-item'; messageItem.innerHTML = ` <div class="message-icon ${typeInfo.colorClass}" title="${effectiveType} Packet"> <i class="fas ${typeInfo.iconClass}"></i> </div> <div class="message-content"> <div class="message-header"> <span class="message-sender">${sanitizeHTML(fromName)}</span> <span class="message-time">${timestamp}</span> </div> <div class="message-text">${details}</div> <div class="message-meta"> <div class="message-meta-item"> <span class="msg-type-indicator ${typeInfo.colorClass}">${effectiveType}</span> </div> <div class="message-meta-item" title="Packet ID"><span>PktID:</span> ${renderCell(packet.id)}</div> <div class="message-meta-item"><span>SNR:</span> ${renderCell(packet.rxSnr, '', 1)}</div> <div class="message-meta-item">${createSignalBars(packet.rxRssi)}</div> ${packet.hopLimit !== undefined ? `<div class="message-meta-item" title="Hop Start / Hop Limit"><span>Hop:</span> ${renderCell(packet.hopStart ?? '?')}/${renderCell(packet.hopLimit)}</div>` : ''} ${packet.channel !== undefined ? `<div class="message-meta-item"><span>Ch:</span> ${renderCell(packet.channel)}</div>` : ''} ${packet.priority !== undefined ? `<div class="message-meta-item" title="Packet Priority"><span>Pri:</span> ${renderCell(packet.priority)}</div>` : ''} ${packet.relayNode !== undefined ? `<div class="message-meta-item" title="Relayed By Node Num"><span>Relay:</span> ${renderCell(packet.relayNode)}</div>` : ''} ${packet.decoded?.bitfield !== undefined ? `<div class="message-meta-item" title="Decoded Bitfield"><span>Bits:</span> ${renderCell(packet.decoded.bitfield)}</div>` : ''} </div> </div>`; messageFeed.insertBefore(messageItem, messageFeed.firstChild); while (messageFeed.childElementCount > MAX_LOG_PACKETS) { messageFeed.removeChild(messageFeed.lastChild); } }
+
+    async function showNodeDetail(nodeId) { if (!nodeId || !nodesData[nodeId]) { console.warn(`Attempted to show detail for unknown node: ${nodeId}`); return; } currentModalNodeId = nodeId; currentModalPositionHistory = []; const node = nodesData[nodeId]; const nodeName = getNodeName(node); const modal = document.getElementById('node-detail-modal'); modal.dataset.activeNodeId = nodeId; document.getElementById('node-detail-title').textContent = `Node Details: ${sanitizeHTML(nodeName)} (${sanitizeHTML(nodeId)})`; modal.classList.add('active'); try { const response = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/history/positions?limit=${MAX_MODAL_HISTORY}`); if (!response.ok) throw new Error(`HTTP error ${response.status}`); const positions = await response.json(); if (positions?.length > 0) { positions.sort((a, b) => (b.timestamp ?? b.time ?? 0) - (a.timestamp ?? a.time ?? 0)); currentModalPositionHistory = positions; } } catch (error) { console.error(`Error pre-fetching positions for ${nodeId}:`, error); currentModalPositionHistory = []; } showTab('overview'); }
+    function hideNodeDetail() { const modal = document.getElementById('node-detail-modal'); delete modal.dataset.activeNodeId; modal.classList.remove('active'); currentModalNodeId = null; currentModalPositionHistory = []; if (nodeDetailMapInstance) { nodeDetailMapInstance.remove(); nodeDetailMapInstance = null; } const mapError = document.getElementById('map-loading-error'); if(mapError) mapError.style.display = 'none'; }
+    function showTab(tabName) { document.querySelectorAll('#node-detail-modal .modal-tab').forEach(tab => tab.classList.remove('active')); const activeTabButton = document.querySelector(`#node-detail-modal .modal-tab[data-tab="${tabName}"]`); if (activeTabButton) activeTabButton.classList.add('active'); document.querySelectorAll('#node-detail-modal .tab-content').forEach(content => content.classList.remove('active')); const activeTabContent = document.getElementById(`${tabName}-tab`); if (activeTabContent) activeTabContent.classList.add('active'); else console.error(`Tab content not found for: ${tabName}-tab`); if (currentModalNodeId) { switch(tabName) { case 'overview': loadNodeOverview(currentModalNodeId); break; case 'map': initializeOrUpdateNodeDetailMap(); break; case 'telemetry': loadNodeTelemetry(currentModalNodeId); break; case 'position': loadNodePosition(currentModalNodeId); break; case 'messages': loadNodeMessages(currentModalNodeId); break; case 'packets': loadNodePackets(currentModalNodeId); break; } } }
+    function setupModalTabs() { document.querySelectorAll('#node-detail-modal .modal-tab').forEach(tab => { tab.addEventListener('click', (e) => showTab(e.target.dataset.tab)); }); }
+    function initializeOrUpdateNodeDetailMap() { const mapContainer = document.getElementById('node-detail-map'); const errorContainer = document.getElementById('map-loading-error'); if (!mapContainer || !currentModalNodeId || !nodesData[currentModalNodeId]) { if(errorContainer) errorContainer.style.display = 'block'; if(mapContainer) mapContainer.innerHTML = ''; if (nodeDetailMapInstance) { nodeDetailMapInstance.remove(); nodeDetailMapInstance = null; } console.error("Cannot init/update map: container or node data missing."); return; } const node = nodesData[currentModalNodeId]; const nodeName = getNodeName(node); const defaultCenter = [53.8, -2.4]; const defaultZoom = 5; const nodeZoom = 15; const history = currentModalPositionHistory; const validHistoryPoints = history.map(pos => { const lat = pos.latitude ?? (pos.latitudeI / 1e7); const lon = pos.longitude ?? (pos.longitudeI / 1e7); if (typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon)) { return { lat: lat, lng: lon, timestamp: pos.timestamp ?? pos.time ?? 0 }; } return null; }).filter(p => p !== null).sort((a, b) => a.timestamp - b.timestamp); const latLngs = validHistoryPoints.map(p => L.latLng(p.lat, p.lng)); if (nodeDetailMapInstance) { nodeDetailMapInstance.eachLayer(layer => { if (layer instanceof L.Marker || layer instanceof L.Polyline) { layer.remove(); } else if (!(layer instanceof L.TileLayer)) { layer.remove(); } }); } else { mapContainer.innerHTML = ''; nodeDetailMapInstance = L.map('node-detail-map'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(nodeDetailMapInstance); } if(errorContainer) errorContainer.style.display = 'none'; if (latLngs.length >= 2) { const polyline = L.polyline(latLngs, { color: 'blue' }).addTo(nodeDetailMapInstance); const latestPoint = latLngs[latLngs.length - 1]; const latestPosData = history[0]; L.marker(latestPoint).addTo(nodeDetailMapInstance) .bindPopup(`<b>${sanitizeHTML(nodeName)}</b><br>Latest: ${latestPoint.lat.toFixed(5)}, ${latestPoint.lng.toFixed(5)}<br>Time: ${formatTimestamp(latestPosData.timestamp ?? latestPosData.time)}`) .openPopup(); nodeDetailMapInstance.fitBounds(polyline.getBounds()); } else if (latLngs.length === 1) { const singlePoint = latLngs[0]; const singlePosData = history[0]; nodeDetailMapInstance.setView(singlePoint, nodeZoom); L.marker(singlePoint).addTo(nodeDetailMapInstance) .bindPopup(`<b>${sanitizeHTML(nodeName)}</b><br>${singlePoint.lat.toFixed(5)}, ${singlePoint.lng.toFixed(5)}<br>Time: ${formatTimestamp(singlePosData.timestamp ?? singlePosData.time)}`) .openPopup(); } else { if(errorContainer) errorContainer.style.display = 'block'; nodeDetailMapInstance.setView(defaultCenter, defaultZoom); } setTimeout(() => { if (nodeDetailMapInstance) nodeDetailMapInstance.invalidateSize(); }, 100); }
+    async function fetchAndRenderList(options) { const { targetElement, fetchUrl, data: initialData, itemRendererFn, listType, loadingMessage = 'Loading...', noDataMessage = 'No data found.', errorMessagePrefix = 'Error loading data:', sortFn, columns } = options; if (!targetElement) { console.error("fetchAndRenderList: Target element not provided."); return; } if (listType === 'table' && typeof columns !== 'number') { console.error("fetchAndRenderList: 'columns' option required for listType 'table'."); return; } const loadingPlaceholder = listType === 'table' ? `<tr><td colspan="${columns}" class="loading-placeholder">${loadingMessage}</td></tr>` : `<div class="loading-placeholder">${loadingMessage}</div>`; targetElement.innerHTML = loadingPlaceholder; let dataArray = initialData; let error = null; if (fetchUrl && !initialData) { try { const response = await fetch(fetchUrl); if (!response.ok) throw new Error(`HTTP error ${response.status}`); dataArray = await response.json(); } catch (err) { console.error(`${errorMessagePrefix} (${fetchUrl}):`, err); error = err; } } targetElement.innerHTML = ''; if (error) { const errorContent = listType === 'table' ? `<tr><td colspan="${columns}" class="error-placeholder">${errorMessagePrefix} ${error.message}</td></tr>` : `<div class="error-placeholder">${errorMessagePrefix} ${error.message}</div>`; targetElement.innerHTML = errorContent; return; } if (!Array.isArray(dataArray) || dataArray.length === 0) { const noDataContent = listType === 'table' ? `<tr><td colspan="${columns}" class="na">${noDataMessage}</td></tr>` : `<div class="na loading-placeholder">${noDataMessage}</div>`; targetElement.innerHTML = noDataContent; return; } if (typeof sortFn === 'function') { dataArray.sort(sortFn); } let contentHtml = ''; dataArray.forEach(item => { contentHtml += itemRendererFn(item); }); targetElement.innerHTML = contentHtml; }
+    function loadNodeOverview(nodeId) { const node = nodesData[nodeId]; const overviewDiv = document.getElementById('node-overview'); if (!overviewDiv || !node) { overviewDiv.innerHTML = '<span class="na loading-placeholder">Node data not available.</span>'; return; } const nodeNum = getNodeValue(node, 'node_num'); const lastHeard = getNodeValue(node, 'lastHeard', [], 'last_heard'); const telemetryTime = getNodeValue(node, 'telemetryTime', [], 'telemetry_time'); const positionTime = getNodeValue(node, 'positionTime', [], 'position_time'); const hwModel = getNodeValue(node, 'hwModel', ['user'], 'hw_model'); const fwVersion = getNodeValue(node, 'firmwareVersion', ['user'], 'firmware_version'); const role = getNodeValue(node, 'role', ['user']); const macAddr = getNodeValue(node, 'macaddr', ['user']); const pubKey = getNodeValue(node, 'publicKey', ['user']); const createdAt = getNodeValue(node, 'created_at'); const updatedAt = getNodeValue(node, 'updated_at'); const lastUpdatedApi = getNodeValue(node, 'last_updated'); const posInfo = node.position_info ?? node.position; let locationInfo = '<span class="na">N/A</span>'; let locationSource = renderCell(posInfo?.locationSource ?? posInfo?.location_source); let locationPrecision = renderCell(posInfo?.precisionBits ?? posInfo?.precision_bits); let locationSeq = renderCell(posInfo?.seqNumber ?? posInfo?.seq_number); let locationHAE = renderCell(posInfo?.altitudeHae ?? posInfo?.altitude_hae, 'm'); let mapLink = ''; const lat = getNodeValue(node, 'latitude', ['position', 'position_info']); const lon = getNodeValue(node, 'longitude', ['position', 'position_info']); const alt = getNodeValue(node, 'altitude', ['position', 'position_info']); const posTimeUsed = positionTime ?? getNodeValue(node, 'time', ['position', 'position_info']); if (typeof lat === 'number' && typeof lon === 'number') { locationInfo = `${lat.toFixed(5)}°, ${lon.toFixed(5)}°`; if (typeof alt === 'number') locationInfo += ` (${renderCell(alt, 'm', 0)} MSL)`; locationInfo += ` <span style="font-size: 0.8em;">(${formatTimeAgo(posTimeUsed)})</span>`; mapLink = ` <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}" target="_blank" title="View on OpenStreetMap" onclick="event.stopPropagation();"><i class="fas fa-external-link-alt" style="font-size: 0.8em;"></i></a>`; } const userInfoBlock = node.user_info ?? node.user; const posInfoBlock = node.position_info ?? node.position; const metricsInfoBlock = node.device_metrics_info ?? node.deviceMetrics; const moduleConfigBlock = node.module_config_info ?? node.moduleConfig; const channelInfoBlock = node.channel_info ?? node.channelSettings; overviewDiv.innerHTML = ` ${renderNodeStatItem('Node ID', `<code>${sanitizeHTML(node.node_id)}</code>`)} ${renderNodeStatItem('Node Num', renderCell(nodeNum))} ${renderNodeStatItem('Name', sanitizeHTML(getNodeName(node)))} ${renderNodeStatItem('Hardware', renderCell(hwModel))} ${renderNodeStatItem('Firmware', renderCell(fwVersion))} ${renderNodeStatItem('Role', renderCell(role))} ${renderNodeStatItem('MAC Address', `<code>${renderCell(macAddr)}</code>`)} ${renderNodeStatItem('Last Heard', formatTimeAgo(lastHeard), formatTimestamp(lastHeard))} ${renderNodeStatItem('Last Telemetry', formatTimeAgo(telemetryTime), formatTimestamp(telemetryTime))} ${renderNodeStatItem('Last Position', formatTimeAgo(positionTime), formatTimestamp(positionTime))} ${renderNodeCoreStatsHtml(node)} <div class="stat-item full-width"> <span class="stat-label">Last Location</span> <span class="stat-value" style="font-size: 0.9em;">${locationInfo}${mapLink}</span> </div> ${renderNodeStatItem('Location Source', locationSource)} ${renderNodeStatItem('Location Precision', locationPrecision)} ${renderNodeStatItem('Altitude (HAE)', locationHAE)} ${renderNodeStatItem('Position Seq #', locationSeq)} <div class="stat-item full-width"> <span class="stat-label">Public Key</span> <span class="stat-value"><code>${renderCell(pubKey)}</code></span> </div> ${renderNodeStatItem('DB Created', formatTimeAgo(Date.parse(createdAt)/1000), createdAt)} ${renderNodeStatItem('DB Updated', formatTimeAgo(Date.parse(updatedAt)/1000), updatedAt)} ${renderNodeStatItem('API Updated', formatTimeAgo(lastUpdatedApi), formatTimestamp(lastUpdatedApi))} ${userInfoBlock ? `<div class="stat-item config-block"><span class="stat-label">User Info Data</span>${renderJSON(userInfoBlock)}</div>` : ''} ${posInfoBlock ? `<div class="stat-item config-block"><span class="stat-label">Position Info Data</span>${renderJSON(posInfoBlock)}</div>` : ''} ${metricsInfoBlock ? `<div class="stat-item config-block"><span class="stat-label">Device Metrics Data</span>${renderJSON(metricsInfoBlock)}</div>` : ''} ${moduleConfigBlock ? `<div class="stat-item config-block"><span class="stat-label">Module Config Data</span>${renderJSON(moduleConfigBlock)}</div>` : ''} ${channelInfoBlock ? `<div class="stat-item config-block"><span class="stat-label">Channel Settings Data</span>${renderJSON(channelInfoBlock)}</div>` : ''} `; }
+    function renderTelemetryRow(tel) { return `<tr> <td>${renderCell(formatTimestamp(tel.timestamp))}</td> <td>${renderCell(tel.battery_level, '%')}</td> <td>${renderCell(tel.voltage, 'V', 2)}</td> <td>${renderCell(tel.channel_utilization, '%', 1)}</td> <td>${renderCell(tel.air_util_tx, '%', 1)}</td> <td>${renderCell(tel.temperature, '°C', 1)}</td> <td>${renderCell(tel.relative_humidity, '%', 1)}</td> <td>${renderCell(tel.barometric_pressure, 'hPa', 0)}</td> <td>${renderCell(tel.gas_resistance, 'kΩ', 1)}</td> <td>${renderCell(tel.iaq, '', 0)}</td> <td>${renderCell(formatUptime(tel.uptime_seconds))}</td> </tr>`; }
+    function loadNodeTelemetry(nodeId) { const telemetryBody = document.getElementById('node-telemetry-body'); fetchAndRenderList({ targetElement: telemetryBody, fetchUrl: `/api/nodes/${encodeURIComponent(nodeId)}/history/telemetry?limit=${MAX_MODAL_HISTORY}`, itemRendererFn: renderTelemetryRow, listType: 'table', columns: 11, noDataMessage: 'No telemetry history found.', errorMessagePrefix: 'Error loading telemetry:', sortFn: (a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0) }); }
+    function renderPositionRow(pos) { const lat = pos.latitude ?? (pos.latitudeI / 1e7); const lon = pos.longitude ?? (pos.longitudeI / 1e7); const altHAE = pos.altitudeHae ?? pos.altitude_hae; const seq = pos.seqNumber ?? pos.seq_number; const prec = pos.precisionBits ?? pos.precision_bits; return `<tr> <td>${renderCell(formatTimestamp(pos.timestamp ?? pos.time))}</td> <td>${renderCell(lat, '', 5)}</td> <td>${renderCell(lon, '', 5)}</td> <td>${renderCell(pos.altitude, 'm')}</td> <td>${renderCell(altHAE, 'm')}</td> <td>${renderCell(pos.sats_in_view ?? pos.sats)}</td> <td>${renderCell(pos.ground_speed, '', 1)}</td> <td>${renderCell(pos.ground_track, '°', 0)}</td> <td>${renderCell(pos.pdop ?? pos.hdop, '', 1)}</td> <td>${renderCell(prec)}</td> <td>${renderCell(seq)}</td> </tr>`; }
+    function loadNodePosition(nodeId) { const positionBody = document.getElementById('node-position-body'); fetchAndRenderList({ targetElement: positionBody, data: currentModalPositionHistory, itemRendererFn: renderPositionRow, listType: 'table', columns: 11, noDataMessage: 'No position history found or failed to load.', errorMessagePrefix: 'Error rendering position history:', }); }
+    function renderMessageItem(msg) { const fromNode = nodesData[msg.from_id]; const fromName = fromNode ? getNodeName(fromNode) : msg.from_id; const toNode = nodesData[msg.to_id]; const isBroadcast = msg.to_id === '^all' || msg.to_id === '!ffffffff'; const toName = isBroadcast ? 'Broadcast' : (toNode ? getNodeName(toNode) : msg.to_id); return ` <div class="packet-log-item"> <div class="packet-log-header"> <span class="packet-log-type">Message</span> <span class="packet-log-time">${formatTimestamp(msg.timestamp)}</span> </div> <div class="packet-log-content"> <strong>${sanitizeHTML(fromName)}</strong> to <strong>${sanitizeHTML(toName)}:</strong> <code>${sanitizeHTML(msg.text)}</code> </div> <div class="packet-log-meta"> Ch: ${renderCell(msg.channel, '')} | SNR: ${renderCell(msg.rx_snr,'',1)} | RSSI: ${renderCell(msg.rx_rssi,'')} | Pkt Event ID: ${renderCell(msg.packet_event_id)} </div> </div>`; }
+    async function loadNodeMessages(nodeId) {
+        const messagesDiv = document.getElementById('node-messages');
+        if (!messagesDiv) return;
+
+        messagesDiv.innerHTML = '<div class="loading-placeholder"><i class="fas fa-comment-dots fa-spin"></i><p>Loading message history...</p></div>';
+
+        let messagesFrom = [];
+        let messagesTo = [];
+        let fetchError = null;
+        try {
+             const fromUrl = `/api/messages/history?from_id=${encodeURIComponent(nodeId)}&limit=${MAX_MODAL_HISTORY}`;
+             const toUrl = `/api/messages/history?to_id=${encodeURIComponent(nodeId)}&limit=${MAX_MODAL_HISTORY}`;
+             const [fromResponse, toResponse] = await Promise.all([
+                 fetch(fromUrl).catch(e => ({ ok: false, status: 'FetchError', error: e })),
+                 fetch(toUrl).catch(e => ({ ok: false, status: 'FetchError', error: e }))
+             ]);
+
+             if (fromResponse.ok) messagesFrom = await fromResponse.json();
+             else if (fromResponse.status !== 404) fetchError = `From: ${fromResponse.status}`;
+
+             if (toResponse.ok) messagesTo = await toResponse.json();
+             else if (toResponse.status !== 404) fetchError = (fetchError ? fetchError + ', ' : '') + `To: ${toResponse.status}`;
+
+             const combinedMessages = {};
+             [...(messagesFrom ?? []), ...(messagesTo ?? [])].forEach(msg => {
+                 if (msg?.packet_event_id) {
+                     combinedMessages[msg.packet_event_id] = msg;
+                 } else if (msg?.id && msg.timestamp) {
+                      combinedMessages[`${msg.id}-${msg.timestamp}`] = msg;
+                 }
+             });
+             const uniqueMessages = Object.values(combinedMessages);
+
+             fetchAndRenderList({
+                 targetElement: messagesDiv,
+                 data: uniqueMessages,
+                 itemRendererFn: renderMessageItem,
+                 listType: 'feed',
+                 noDataMessage: 'No message history found involving this node.',
+                 errorMessagePrefix: `Error loading messages${fetchError ? ` (${fetchError})` : ''}:`,
+                 sortFn: (a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0)
+             });
+
+        } catch (error) {
+            console.error(`Error processing messages for ${nodeId}:`, error);
+            messagesDiv.innerHTML = `<div class="error-placeholder">Error loading messages: ${error?.message ?? 'Unknown error'}</div>`;
+        }
+    }
+    async function renderPacketItem(packet) { const { details, effectiveType } = await renderPacketDetails(packet); return ` <div class="packet-log-item"> <div class="packet-log-header"> <span class="packet-log-type">${effectiveType}</span> <span class="packet-log-time">${formatTimestamp(packet.timestamp)}</span> </div> <div class="packet-log-content">${details}</div> <div class="packet-log-meta"> <span class="message-meta-item">To: ${renderCell(packet.toId,'')}</span> | <span class="message-meta-item">SNR: ${renderCell(packet.rxSnr, '', 1)}</span> | <span class="message-meta-item">RSSI: ${renderCell(packet.rxRssi, '')}</span> | <span class="message-meta-item">Ch: ${renderCell(packet.channel, '')}</span> | <span class="message-meta-item" title="API Event ID">EvtID: ${renderCell(packet.event_id, '')}</span> | <span class="message-meta-item" title="Packet ID">PktID: ${renderCell(packet.id)}</span> | <span class="message-meta-item" title="Hop Start / Hop Limit">Hop: ${renderCell(packet.hopStart ?? '?')}/${renderCell(packet.hopLimit,'')}</span> ${packet.priority !== undefined ? ` | <span class="message-meta-item" title="Packet Priority">Pri: ${renderCell(packet.priority)}</span>` : ''} ${packet.relayNode !== undefined ? ` | <span class="message-meta-item" title="Relayed By Node Num">Relay: ${renderCell(packet.relayNode)}</span>` : ''} ${packet.decoded?.bitfield !== undefined ? ` | <span class="message-meta-item" title="Decoded Bitfield">Bits: ${renderCell(packet.decoded.bitfield)}</span>` : ''} </div> </div>`; }
+    async function loadNodePackets(nodeId) { const packetsDiv = document.getElementById('node-packets'); const nodePackets = packetHistory[nodeId] || []; if (!packetsDiv) return; packetsDiv.innerHTML = '<div class="loading-placeholder">Loading session packets...</div>'; if (nodePackets.length === 0) { packetsDiv.innerHTML = '<div class="na loading-placeholder">No packets recorded in this session from this node.</div>'; return; } try { const renderedItems = await Promise.all(nodePackets.map(packet => renderPacketItem(packet))); packetsDiv.innerHTML = renderedItems.join(''); } catch (error) { console.error(`Error rendering packets for ${nodeId}:`, error); packetsDiv.innerHTML = `<div class="error-placeholder">Error rendering packets: ${error.message}</div>`; } }
+
+    function initializeModalChart() { if (modalAverageChart) return; const ctx = document.getElementById('modalAverageChart')?.getContext('2d'); if (!ctx) { console.error("Modal chart canvas not found!"); return; } modalAverageChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [ { label: 'Average RSSI (dBm)', data: [], borderColor: 'rgb(59, 130, 246)', backgroundColor: 'rgba(59, 130, 246, 0.1)', yAxisID: 'yRSSI', tension: 0.1, spanGaps: true, pointRadius: 2, pointHoverRadius: 4, borderWidth: 1.5 }, { label: 'Average SNR (dB)', data: [], borderColor: 'rgb(16, 185, 129)', backgroundColor: 'rgba(16, 185, 129, 0.1)', yAxisID: 'ySNR', tension: 0.1, spanGaps: true, pointRadius: 2, pointHoverRadius: 4, borderWidth: 1.5 } ] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { type: 'time', time: { tooltipFormat: 'PP HH:mm:ss', unit: 'minute', displayFormats: { minute: 'HH:mm', hour: 'HH:00', day: 'MMM dd' } }, title: { display: true, text: 'Time' } }, yRSSI: { type: 'linear', position: 'left', title: { display: true, text: 'Average RSSI (dBm)' }, suggestedMin: -130, suggestedMax: -50 }, ySNR: { type: 'linear', position: 'right', title: { display: true, text: 'Average SNR (dB)' }, grid: { drawOnChartArea: false }, suggestedMin: -15, suggestedMax: 15 } }, plugins: { legend: { position: 'top' }, tooltip: { callbacks: { title: function(context) { const timestamp = context[0]?.parsed?.x; return timestamp ? formatTimestamp(timestamp / 1000) : ''; } } } } } }); }
+    function updateModalChart(historyData) { const loadingEl = document.getElementById('modal-chart-loading'); if (!modalAverageChart) { console.warn("Modal chart not initialized."); if (loadingEl) loadingEl.textContent = "Error: Chart not initialized."; return; } if (!historyData || historyData.length === 0) { if (loadingEl) { loadingEl.textContent = "No historical data available."; loadingEl.style.display = 'block'; } modalAverageChart.data.labels = []; modalAverageChart.data.datasets[0].data = []; modalAverageChart.data.datasets[1].data = []; modalAverageChart.update(); return; } if (loadingEl) loadingEl.style.display = 'none'; const timestamps = []; const avgSnrHistory = []; const avgRssiHistory = []; historyData.slice().reverse().forEach(entry => { timestamps.push(new Date(entry.timestamp * 1000)); avgRssiHistory.push((entry.average_rssi !== null && !isNaN(entry.average_rssi)) ? entry.average_rssi : NaN); avgSnrHistory.push((entry.average_snr !== null && !isNaN(entry.average_snr)) ? entry.average_snr : NaN); }); modalAverageChart.data.labels = timestamps; modalAverageChart.data.datasets[0].data = avgRssiHistory; modalAverageChart.data.datasets[1].data = avgSnrHistory; modalAverageChart.update(); }
+    async function showAveragesChartModal() { const modal = document.getElementById('averages-chart-modal'); const loadingEl = document.getElementById('modal-chart-loading'); if (!modal) return; initializeModalChart(); if (loadingEl) { loadingEl.textContent = "Loading chart data..."; loadingEl.style.display = 'block'; } if (modalAverageChart) { modalAverageChart.data.labels = []; modalAverageChart.data.datasets[0].data = []; modalAverageChart.data.datasets[1].data = []; modalAverageChart.update('none'); } modal.classList.add('active'); await fetchAverageData(true); }
+    function hideAveragesChartModal() { const modal = document.getElementById('averages-chart-modal'); if (modal) modal.classList.remove('active'); }
+    function updateHeaderAverages(data) { const rssiEl = document.getElementById('api-avg-rssi'); const snrEl = document.getElementById('api-avg-snr'); const metaEl = document.getElementById('api-avg-meta'); const nodesEl = document.getElementById('api-avg-nodes'); const timeEl = document.getElementById('api-avg-time'); if (!rssiEl || !snrEl || !metaEl || !nodesEl || !timeEl) return; if (!data) { rssiEl.innerHTML = `<span class="na">N/A</span>`; snrEl.innerHTML = `<span class="na">N/A</span>`; metaEl.style.display = 'none'; return; } const avgRssi = data.average_rssi; const avgSnr = data.average_snr; const nodeCount = data.node_count; const timestamp = data.timestamp; const rssiStyle = getStyleInfo('signal', avgRssi); const snrStyle = getStyleInfo('snr', avgSnr); rssiEl.innerHTML = `${renderCell(avgRssi, ' dBm', 1)} <span class="signal-dot ${rssiStyle.class}"></span>`; snrEl.innerHTML = `${renderCell(avgSnr, ' dB', 1)} <span class="signal-dot ${snrStyle.class}"></span>`; nodesEl.textContent = nodeCount ?? '?'; timeEl.textContent = formatTimeAgo(timestamp); metaEl.style.display = 'block'; }
+    async function fetchAverageData(isModalContext = false) { try { const response = await fetch(AVG_API_ENDPOINT); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (!data) throw new Error("Empty API response for averages"); updateHeaderAverages(data.most_recent); const modal = document.getElementById('averages-chart-modal'); if (modal && modal.classList.contains('active')) { updateModalChart(data.history); } } catch (error) { console.error("Error fetching average metrics:", error); updateHeaderAverages(null); const modal = document.getElementById('averages-chart-modal'); if (modal && modal.classList.contains('active')) { const loadingEl = document.getElementById('modal-chart-loading'); if (loadingEl) { loadingEl.textContent = `Error loading chart: ${error.message}`; loadingEl.style.display = 'block'; } if (modalAverageChart) { modalAverageChart.data.labels = []; modalAverageChart.data.datasets[0].data = []; modalAverageChart.data.datasets[1].data = []; modalAverageChart.update('none'); } } } }
+
+    function logDebugOutput(eventType, data) { const debugOutput = document.getElementById('debug-output'); if (!debugOutput) return; const timestamp = new Date().toISOString(); let dataString; try { dataString = JSON.stringify(data, null, 2); } catch (e) { dataString = String(data); } const logEntry = `[${timestamp}] ${eventType}:\n${dataString}\n\n`; debugOutput.textContent += logEntry; if (debugOutput.textContent.length > MAX_DEBUG_LENGTH) { debugOutput.textContent = debugOutput.textContent.substring(debugOutput.textContent.length - MAX_DEBUG_LENGTH); } const debugPanel = document.getElementById('debug-panel'); if (debugPanel && debugPanel.classList.contains('active')) { debugOutput.scrollTop = debugOutput.scrollHeight; } }
+    function toggleDebugPanel() { const panel = document.getElementById('debug-panel'); panel?.classList.toggle('active'); if(panel?.classList.contains('active')) { document.getElementById('debug-output').scrollTop = document.getElementById('debug-output').scrollHeight; } }
+    function closeDebugPanel() { document.getElementById('debug-panel')?.classList.remove('active'); }
+    function clearDebugOutput() { const debugOutput = document.getElementById('debug-output'); if (debugOutput) debugOutput.textContent = ''; }
+
+    function setupSSE() {
+        console.log("Connecting to SSE endpoint (/sse)...");
+        if (eventSource) eventSource.close();
+        eventSource = new EventSource('/sse');
+
+        eventSource.onopen = function() {
+            console.log("SSE Connection Opened.");
+            updateStatus("Connected");
+            logDebugOutput("SSE Connection", "Connection Opened");
+            Object.keys(nodesData).forEach(key => delete nodesData[key]);
+            Object.keys(packetHistory).forEach(key => delete packetHistory[key]);
+            historicalCountFetchPromises = {};
+            localNodeInfo = {};
+            localNodeFullData = {};
+            lastStats = {};
+            overallHistoricalTotals = {};
+            currentModalPositionHistory = [];
+            currentPage = 1;
+            updateNodesGrid('full');
+            updateLocalNodeHeader();
+            updateStats({}, {});
+            updateHeaderAverages(null);
+            const feed = document.getElementById('message-feed');
+            if(feed) feed.innerHTML = '<div class="placeholder-message loading-placeholder">Waiting for packets...</div>';
+            fetchAndApplyOverallTotals();
+        };
+
+        eventSource.onerror = function(err) { console.error("SSE Connection Error:", err); if (eventSource.readyState === EventSource.CLOSED) { updateStatus("Disconnected"); logDebugOutput("SSE Error", "Connection Closed"); } else { updateStatus("Error"); logDebugOutput("SSE Error", "Connection Error (Still open?)"); } };
+        eventSource.onmessage = function(event) { logDebugOutput(`Generic SSE (${event.type || 'message'})`, event.data); };
+
+        const eventHandlers = {
+            'connection_status': (data) => updateStatus(data),
+            'local_node_info': (data) => { localNodeInfo = data ?? {}; updateLocalNodeHeader(); },
+            'stats': (data) => {
+                lastStats = data ?? {};
+                updateStats(lastStats, overallHistoricalTotals);
+            },
+            'nodes': async (data) => {
+                 Object.keys(nodesData).forEach(key => delete nodesData[key]);
+                 historicalCountFetchPromises = {};
+                 const receivedNodes = Array.isArray(data) ? data : [];
+                 receivedNodes.forEach(node => { if (node && node.node_id) { nodesData[node.node_id] = { ...node, historicalMessageCount: undefined, historicalPositionCount: undefined, historicalTelemetryCount: undefined }; } else { console.warn("Received invalid node object in 'nodes' event:", node); } });
+                 logDebugOutput('Nodes Full List', `${receivedNodes.length} nodes received. Counts will be fetched per page.`);
+                 const localIdFromHeader = localNodeInfo?.node_id;
+                 if (localIdFromHeader && nodesData[localIdFromHeader]) { localNodeFullData = nodesData[localIdFromHeader]; } else { const localNode = Object.values(nodesData).find(n => n.isLocal === true || n.is_local === 1); if (localNode) localNodeFullData = localNode; }
+                 updateLocalNodeHeader();
+                 currentPage = 1;
+                 updateNodesGrid('full');
+                 await fetchAndApplyOverallTotals();
+            },
+            'node_update': async (data) => {
+                if (data?.node_id) {
+                    const nodeId = data.node_id;
+                    const isNewNode = !(nodeId in nodesData);
+                    const existingCounts = { historicalMessageCount: nodesData[nodeId]?.historicalMessageCount, historicalPositionCount: nodesData[nodeId]?.historicalPositionCount, historicalTelemetryCount: nodesData[nodeId]?.historicalTelemetryCount };
+                    if(isNewNode) { existingCounts.historicalMessageCount = undefined; existingCounts.historicalPositionCount = undefined; existingCounts.historicalTelemetryCount = undefined; }
+                    nodesData[nodeId] = { ...(nodesData[nodeId] || {}), ...data, ...existingCounts, node_id: nodeId };
+                    const isLocalUpdate = getNodeValue(data, 'isLocal', [], 'is_local') === true || getNodeValue(data, 'isLocal', [], 'is_local') === 1;
+                    if (isLocalUpdate || nodeId === localNodeInfo?.node_id) { localNodeFullData = nodesData[nodeId]; updateLocalNodeHeader(); }
+                    updateNodesGrid('full');
+                    if(isNewNode) {
+                        await fetchAndApplyOverallTotals();
+                    }
+                    const modal = document.getElementById('node-detail-modal');
+                    if (modal.classList.contains('active') && modal.dataset.activeNodeId === nodeId) {
+                        loadNodeOverview(nodeId);
+                        const activeTab = document.querySelector('#node-detail-modal .modal-tab.active')?.dataset.tab;
+                        if (data.position || data.position_info) { try { const response = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/history/positions?limit=${MAX_MODAL_HISTORY}`); if (!response.ok) throw new Error(`HTTP error ${response.status}`); const positions = await response.json(); currentModalPositionHistory = (positions?.length > 0) ? positions.sort((a,b) => (b.timestamp ?? b.time ?? 0)-(a.timestamp ?? a.time ?? 0)) : []; if (activeTab === 'map') initializeOrUpdateNodeDetailMap(); if (activeTab === 'position') loadNodePosition(nodeId); } catch(error) { console.error(`Error refreshing positions for modal update ${nodeId}:`, error); currentModalPositionHistory = []; } }
+                        if ((data.deviceMetrics || data.device_metrics_info) && activeTab === 'telemetry') { loadNodeTelemetry(nodeId); }
+                        if (activeTab === 'packets') { loadNodePackets(nodeId); }
+                        if (activeTab === 'messages') { loadNodeMessages(nodeId); }
+                    }
+                } else { console.warn("Received node_update without node_id", data); }
+            },
+            'node_removed': async (data) => {
+                if (data?.node_id && nodesData[data.node_id]) {
+                    const removedNodeId = data.node_id;
+                    delete nodesData[removedNodeId];
+                    delete packetHistory[removedNodeId];
+                    delete historicalCountFetchPromises[removedNodeId];
+                    logDebugOutput('Node Removed', removedNodeId);
+                    updateNodesGrid('full');
+                    await fetchAndApplyOverallTotals();
+                    const modal = document.getElementById('node-detail-modal');
+                    if (modal.classList.contains('active') && modal.dataset.activeNodeId === removedNodeId) {
+                        hideNodeDetail();
+                    }
+                }
+            },
+            'packet': async (data) => {
+                if (data && data.fromId) {
+                    const nodeId = data.fromId;
+                    const packetType = data.app_packet_type;
+                    logDebugOutput('packet', data);
+                    await addMessageToFeed(data);
+                    const shouldRefetchIndividualCount = ['Message', 'Position', 'Telemetry'].includes(packetType);
+                    if (shouldRefetchIndividualCount && nodesData[nodeId]) {
+                        console.log(`Packet type ${packetType} for ${nodeId}, triggering individual count refetch.`);
+                        fetchHistoricalCounts(nodeId)
+                            .then(() => {
+                                 const nodesOnCurrentPage = Object.keys(nodesData).filter(id => { const node = nodesData[id]; if (!node) return false; const searchInput = document.getElementById('node-search'); const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : ''; const name = getNodeName(node).toLowerCase(); const idLower = id.toLowerCase(); return searchTerm === '' || name.includes(searchTerm) || idLower.includes(searchTerm); }).sort((a,b) => { const nodeA = nodesData[a]; const nodeB = nodesData[b]; const valueA = getNodeSortValue(nodeA, currentSortKey); const valueB = getNodeSortValue(nodeB, currentSortKey); const valAIsNum = typeof valueA === 'number' && !isNaN(valueA); const valBIsNum = typeof valueB === 'number' && !isNaN(valueB); const numericSort = ['last_heard', 'signal', 'snr', 'messages', 'positions', 'telemetry'].includes(currentSortKey); let effectiveA = valueA; let effectiveB = valueB; if (numericSort) { effectiveA = valAIsNum ? valueA : (currentSortDirection === 'desc' ? -Infinity : Infinity); effectiveB = valBIsNum ? valueB : (currentSortDirection === 'desc' ? -Infinity : Infinity); } let comparison = 0; if (typeof effectiveA === 'string' && typeof effectiveB === 'string') { comparison = effectiveA.localeCompare(effectiveB); } else { if (effectiveA < effectiveB) { comparison = -1; } else if (effectiveA > effectiveB) { comparison = 1; } } return currentSortDirection === 'desc' ? (comparison * -1) : comparison; }).slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                                 if (nodesOnCurrentPage.includes(nodeId)) {
+                                     updateNodesGrid('full');
+                                 }
+                                 fetchAndApplyOverallTotals();
+                            })
+                            .catch(error => { console.error(`Error during individual count refetch triggered by packet for ${nodeId}:`, error); });
+                    } else if (shouldRefetchIndividualCount && !nodesData[nodeId]) {
+                        console.log(`Received ${packetType} packet for unknown node ${nodeId}. Individual count will be fetched when node appears.`);
+                        fetchAndApplyOverallTotals();
+                    } else {
+                    }
+                    if (currentModalNodeId && nodeId === currentModalNodeId && document.querySelector('.modal-tab[data-tab="packets"]')?.classList.contains('active')) { loadNodePackets(currentModalNodeId); }
+                    if (packetType === 'Message' && currentModalNodeId && (nodeId === currentModalNodeId || data.toId === currentModalNodeId) && document.querySelector('.modal-tab[data-tab="messages"]')?.classList.contains('active')) { loadNodeMessages(currentModalNodeId); }
+                } else { logDebugOutput('packet (ignored)', 'Packet missing data or fromId'); }
+            }
+        };
+
+        Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+            eventSource.addEventListener(eventName, async (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (eventName !== 'packet') { logDebugOutput(eventName, data); }
+                    await handler(data);
+                } catch (e) { console.error(`Error parsing/handling ${eventName}:`, e, "Raw data:", event.data); logDebugOutput(`ERROR parsing/handling ${eventName}`, { error: e.message, rawData: event.data }); }
+            });
+        });
+
+        console.log("SSE Handlers Initialized.");
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateStatus("Initializing");
+        updateLocalNodeHeader();
+        updateStats({}, {});
+        updateHeaderAverages(null);
+        updateNodesGrid('full');
+
+        document.querySelectorAll('#node-sort-buttons .sort-btn').forEach(button => {
+            button.addEventListener('click', handleSortClick);
+            if (button.dataset.sortKey === currentSortKey) {
+                button.classList.add('active');
+                const iconClass = currentSortDirection === 'asc' ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short';
+                button.insertAdjacentHTML('beforeend', ` <i class="fas ${iconClass}"></i>`);
+            }
+        });
+
+        setupModalTabs();
+        setupPaginationControls();
+
+        initializeModalChart();
+        fetchAverageData();
+        setInterval(fetchAverageData, AVG_UPDATE_INTERVAL);
+        fetchAndApplyOverallTotals();
+        setInterval(fetchAndApplyOverallTotals, TOTALS_UPDATE_INTERVAL);
+
+        const messageFeed = document.getElementById('message-feed');
+        if(messageFeed && messageFeed.childElementCount === 0) {
+                messageFeed.innerHTML = '<div class="placeholder-message loading-placeholder">Waiting for packets...</div>';
+        }
+
+        setupSSE();
+        setupSearchFilter();
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') { hideNodeDetail(); hideAveragesChartModal(); closeDebugPanel(); }
+        });
+    });
+
+    </script>
+
+    <div id="md-update-modal">
+        <div class="md-modal-content">
+            <span class="md-modal-close" id="md-modal-close-btn">&times;</span>
+            <h3><i class="fas fa-arrow-circle-up"></i> Update Available</h3>
+            <p>A newer version of the Mesh Dashboard is available!</p>
+            <p>You can download the latest version from:</p>
+            <p style="text-align: center; margin: 15px 0;">
+                <a href="https://meshdash.co.uk/" target="_blank">https://meshdash.co.uk/</a>
+            </p>
+            <div class="md-modal-note">
+                <i class="fas fa-info-circle"></i> Please check the documentation for update instructions.
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-container">
+        <div class="footer-left">
+            <div class="footer-item">
+                <i class="fas fa-cubes"></i>
+                <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+                <strong>Rusjp</strong>
+            </div>
+
+            <div class="footer-divider">|</div>
+
+            <div class="footer-item">
+                <span>Version:</span>
+                <strong id="md-installed-version">Loading...</strong>
+            </div>
+
+            <div id="md-update-container" style="display: none;">
+                <div class="footer-divider">|</div>
+                <div class="footer-item">
+                    <i class="fas fa-arrow-circle-up"></i>
+                    <span>Update Available:</span>
+                    <strong id="md-latest-version"></strong>
+                    <button id="md-update-btn">Info</button>
+                     <button class="debug-button" id="debug-button" onclick="toggleDebugPanel()">
+                        <i class="fas fa-bug"></i> Debug
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+(function() {
+    const LOCAL_CONFIG_API_URL = '/api/system/config/'; 
+    const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version'; 
+
+    const instVerSpan = document.getElementById('md-installed-version');
+    const updateContainer = document.getElementById('md-update-container');
+    const latestVersionSpan = document.getElementById('md-latest-version');
+    const updateModal = document.getElementById('md-update-modal'); 
+    const updateBtn = document.getElementById('md-update-btn');
+    const modalCloseBtn = document.getElementById('md-modal-close-btn'); 
+
+
+    async function fetchLocalConfig() {
+        console.debug(`Workspaceing local config from: ${LOCAL_CONFIG_API_URL}`);
+        try {
+            const response = await fetch(LOCAL_CONFIG_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching local config: ${response.status} ${response.statusText}`);
+                let errorBody = 'Could not read error body.';
+                try { errorBody = await response.text(); } catch(e){}
+                console.error("Local config error body:", errorBody);
+                return null;
+            }
+            const configData = await response.json();
+            console.debug("Received local config data:", configData);
+            return configData;
+        } catch (error) {
+            console.error('Failed to fetch or parse local configuration:', error);
+            return null;
+        }
+    }
+
+    async function fetchExternalVersion() {
+        console.debug(`Workspaceing latest version from: ${EXTERNAL_VERSION_API_URL}`);
+        try {
+            const response = await fetch(EXTERNAL_VERSION_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                let errorBody = 'Could not read error body.';
+                try { errorBody = await response.text(); } catch(e){}
+                console.error("External version error body:", errorBody);
+                return null;
+            }
+            const versionData = await response.json();
+            console.debug("Received external version data:", versionData);
+            return versionData;
+        } catch (error) {
+            console.error('Error fetching or parsing external version:', error);
+            return null;
+        }
+    }
+
+    function compareVersions(v1, v2) {
+        if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+            console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+            return 0;
+        }
+        try {
+            const p1 = v1.substring(1).split('.').map(Number);
+            const p2 = v2.substring(1).split('.').map(Number);
+            if (p1.some(isNaN) || p2.some(isNaN)) {
+                console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                return 0; 
+            }
+            const len = Math.max(p1.length, p2.length);
+            for (let i = 0; i < len; i++) {
+                const n1 = p1[i] || 0; 
+                const n2 = p2[i] || 0;
+                if (n1 < n2) return -1;
+                if (n1 > n2) return 1;
+            }
+            return 0; 
+        } catch (e) {
+            console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+            return 0; 
+        }
+    }
+
+    async function initFooter() {
+        if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+            console.error('Footer initialization failed: missing essential display elements (installed version, update container, or latest version).');
+            if (instVerSpan) instVerSpan.textContent = 'Error!';
+            return;
+        }
+        if (updateBtn && (!updateModal || !modalCloseBtn)) {
+            console.warn('Modal elements (md-update-modal, md-modal-close-btn) seem missing. Update info button might not work.');
+        }
+
+        let installedVersion = null;
+
+        const localConfig = await fetchLocalConfig();
+        if (localConfig && localConfig.INSTALLED_VERSION) {
+            installedVersion = localConfig.INSTALLED_VERSION.trim();
+            instVerSpan.textContent = installedVersion; 
+            instVerSpan.style.color = ''; 
+        } else {
+            console.error("Could not retrieve installed version from local config API.");
+            instVerSpan.textContent = 'Error!';
+            instVerSpan.style.color = 'red';
+            return; 
+        }
+
+        const externalData = await fetchExternalVersion();
+        if (externalData && externalData.version && typeof externalData.version === 'string') {
+            const latestAvailableVersion = externalData.version.trim();
+
+            const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+            console.log(`Version Comparison: Installed='${installedVersion}', Latest='${latestAvailableVersion}', Result=${comparisonResult}`);
+
+            if (comparisonResult < 0) {
+                console.log("Update available!");
+                latestVersionSpan.textContent = latestAvailableVersion;
+                updateContainer.style.display = 'flex'; 
+                if (updateBtn) updateBtn.style.display = 'inline-block';
+            } else if (comparisonResult === 0) {
+                console.log("Version is up to date.");
+                updateContainer.style.display = 'none'; 
+            } else {
+                console.log("Installed version is newer than external version (or equal/error).");
+                updateContainer.style.display = 'none'; 
+            }
+        } else {
+            console.warn("Could not retrieve latest version from external API. Update check skipped.");
+            updateContainer.style.display = 'none';
+        }
+
+        if (updateBtn && updateModal && modalCloseBtn) {
+            updateBtn.addEventListener('click', () => {
+                updateModal.style.display = 'block';
+            });
+
+            modalCloseBtn.addEventListener('click', () => {
+                updateModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (e) => {
+                if (e.target === updateModal) {
+                    updateModal.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && updateModal.style.display === 'block') {
+                    updateModal.style.display = 'none';
+                }
+            });
+        } else {
+            if(updateBtn) updateBtn.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initFooter);
+
+})();
+</script>
+</body>
+</html>

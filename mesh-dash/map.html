@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/static/top_nav.html')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status} loading navigation`);
+                }
+                return response.text();
+            })
+            .then(data => {
+                const navPlaceholder = document.getElementById('nav-placeholder');
+                if (navPlaceholder) {
+                    navPlaceholder.innerHTML = data;
+                    const currentPath = window.location.pathname;
+                    const navLinks = navPlaceholder.querySelectorAll('.nav-link');
+                    navLinks.forEach(link => {
+                        const linkPath = link.getAttribute('href');
+                        if (linkPath === currentPath || (linkPath !== '/' && currentPath.startsWith(linkPath))) {
+                            link.classList.add('active');
+                        }
+                    });
+                } else {
+                    console.error("Navigation placeholder element not found.");
+                }
+            })
+            .catch(error => console.error('Error loading navigation:', error));
+    });
+    </script>
+    <style>
+        #map {
+            height: 65vh;
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-inner);
+            background-color: #2a2a2a;
+            border: 1px solid var(--border-color);
+        }
+
+        .map-controls-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+
+        /* Styles for Map Style Selector */
+        .map-style-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: rgba(42, 45, 60, 0.5);
+            padding: 0.5rem 1rem;
+            border-radius: calc(var(--radius) / 1.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .map-style-selector label {
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            margin-bottom: 0; /* Override default label margin if any */
+        }
+
+        .map-style-selector select {
+            padding: 0.4rem 0.8rem; /* Adjusted padding */
+            font-size: 0.8rem;   /* Adjusted font size */
+            background-color: var(--card-background);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xs);
+            cursor: pointer;
+        }
+        .map-style-selector select:hover {
+            border-color: var(--primary-color);
+        }
+
+
+        .filter-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .filter-options label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: rgba(42, 45, 60, 0.5);
+            padding: 0.5rem 1rem;
+            border-radius: calc(var(--radius) / 1.5);
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            transition: var(--transition-smooth);
+        }
+
+        .filter-options label:hover {
+            background-color: rgba(79, 135, 255, 0.15);
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        .filter-options input[type="checkbox"] {
+            margin: 0;
+            accent-color: var(--primary-color);
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .map-action-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .legend {
+            background: rgba(26, 28, 37, 0.9);
+            padding: 12px 15px;
+            border-radius: calc(var(--radius) / 2);
+            box-shadow: var(--shadow-md);
+            line-height: 1.6;
+            /* max-height is now controlled by legend-content and minimized state */
+            color: var(--text-primary);
+            font-size: 0.813rem;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(4px);
+            width: 220px; /* Adjust width as needed */
+        }
+        
+        /* Styles for Legend Minimizing and Searching */
+        .legend-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            /* margin-bottom: 8px; /* original h4 margin is 0 0 8px */
+        }
+
+        .legend-header h4 { /* Original: margin: 0 0 8px; */
+            margin: 0;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            font-size: 0.875rem;
+            color: var(--primary-color);
+            flex-grow: 1; /* Allow h4 to take space */
+        }
+
+        .btn-minimize {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem; /* Adjust for icon size */
+            padding: 0.25rem 0.5rem;
+            line-height: 1; /* ensure icon is vertically centered */
+        }
+        .btn-minimize:hover {
+            color: var(--primary-color);
+        }
+
+        .legend-search-container {
+            margin-top: 8px; /* Add some space after header */
+            margin-bottom: 8px;
+        }
+
+        .legend-search-container input[type="text"] {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--border-color);
+            background-color: rgba(0,0,0,0.2);
+            color: var(--text-primary);
+            border-radius: var(--radius-xs);
+            box-sizing: border-box;
+            font-size: 0.8rem;
+        }
+
+        .legend-content {
+            max-height: 250px; /* Adjust as needed, can be less than .legend overall max-height */
+            overflow-y: auto;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out, margin 0.3s ease-out;
+            /* padding-top: 5px; Add some padding if header border is removed */
+        }
+        
+        .legend.minimized .legend-search-container {
+             display: none;
+        }
+
+        .legend.minimized .legend-content {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            padding-top: 0;
+            padding-bottom: 0;
+            margin-top: 0;
+            border-top: none; /* Hide border when content is gone */
+        }
+        .legend.minimized .legend-header h4 { /* Example: remove border when minimized */
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            cursor: default;
+        }
+        .legend-item.clickable {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .legend-item.clickable:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .legend-item.hidden-by-search {
+            display: none !important;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 2px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+
+        .legend-item div:last-child {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px; /* Adjust if legend width changes */
+        }
+
+        .node-popup {
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            max-width: 300px;
+        }
+
+        .node-popup h3 {
+            margin: 0 0 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            color: var(--primary-color);
+        }
+
+        .node-popup table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .node-popup table td {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            vertical-align: top;
+        }
+
+        .node-popup table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .node-popup table td:first-child {
+            font-weight: 500;
+            color: var(--text-secondary);
+            width: 80px;
+            padding-right: 10px;
+        }
+
+        .popup-message-form {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .popup-message-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .popup-message-form input[type="text"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            background-color: rgba(0,0,0,0.2);
+            color: var(--text-primary);
+            border-radius: var(--radius-xs);
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .popup-message-form button {
+            padding: 8px 15px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            border: none;
+            border-radius: var(--radius-xs);
+            background-color: var(--primary-color);
+            color: white;
+            transition: background-color 0.2s ease;
+        }
+
+        .popup-message-form button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .popup-message-form button:disabled {
+            background-color: var(--button-disabled-bg);
+            cursor: not-allowed;
+        }
+
+        .popup-message-feedback {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            min-height: 1.2em;
+        }
+
+        .popup-message-feedback.success {
+            color: var(--success-color);
+        }
+
+        .popup-message-feedback.error {
+            color: var(--error-color);
+        }
+
+        .leaflet-popup-content-wrapper {
+            background-color: var(--card-background) !important;
+            color: var(--text-primary) !important;
+            border-radius: var(--radius-sm) !important;
+            box-shadow: var(--shadow-md) !important;
+            border: 1px solid var(--border-color) !important;
+            backdrop-filter: blur(8px);
+            padding: 0 !important; /* Adjusted in original */
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important; /* Adjusted in original */
+            padding: 12px 15px !important; /* Adjusted in original */
+        }
+
+        .leaflet-popup-tip {
+            background-color: var(--card-background) !important; /* Ensure tip matches */
+            border: 1px solid var(--border-color) !important; /* Match border */
+            box-shadow: var(--shadow-md) !important; /* Match shadow */
+        }
+
+
+        .leaflet-container a.leaflet-popup-close-button {
+            color: var(--text-secondary) !important;
+            padding: 8px 8px 0 0 !important;
+            font-weight: normal !important;
+            font-size: 16px !important;
+            transition: var(--transition-smooth);
+        }
+
+        .leaflet-container a.leaflet-popup-close-button:hover {
+            color: var(--primary-color) !important;
+            background: transparent !important;
+        }
+
+        .signal-indicator {
+            display: inline-block;
+            font-size: 0.75rem;
+            background-color: rgba(42, 45, 60, 0.7);
+            padding: 2px 8px;
+            border-radius: calc(var(--radius)/2);
+            margin-left: 5px;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .signal-excellent { background-color: var(--signal-excellent); color: white; border-color: var(--signal-excellent); }
+        .signal-good { background-color: var(--signal-good); color: white; border-color: var(--signal-good); }
+        .signal-fair { background-color: var(--signal-fair); color: #fff; border-color: var(--signal-fair); }
+        .signal-poor { background-color: var(--signal-poor); color: white; border-color: var(--signal-poor); }
+        .signal-unknown { background-color: var(--border-color); color: var(--text-secondary); }
+
+        .leaflet-div-icon {
+            background: none !important;
+            border: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .map-controls-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .map-style-selector {
+                justify-content: space-between; /* Better spacing on small screens */
+            }
+            .filter-options, .map-action-buttons {
+                justify-content: center;
+            }
+            #map { height: 60vh; }
+            .legend { width: auto; max-width: 90vw; } /* Allow legend to be wider on small screens */
+        }
+    </style>
+    <script src="/static/nav_loader.js" defer></script>
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-map-marked-alt"></i> Meshtastic Map</h1>
+                <div class="status-container">
+                    <span id="status-indicator" class="status-indicator"></span>
+                    <span id="status-text">Initializing...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="card">
+            <div class="card-header">
+                <h2><i class="fas fa-map-location-dot"></i> Node Map</h2>
+            </div>
+            <div class="card-content">
+                <div class="map-controls-container">
+                    <div class="map-style-selector">
+                        <label for="map-style"><i class="fas fa-layer-group"></i> Map Style:</label>
+                        <select id="map-style" class="btn">
+                            <option value="osm">OpenStreetMap</option>
+                            <option value="dark">Dark Mode</option>
+                            <option value="satellite">Satellite</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-options">
+                        <label><input type="checkbox" id="show-all" checked> Show All Nodes</label>
+                        <label><input type="checkbox" id="show-trajectories" checked> Show Trajectories</label>
+                        <label><input type="checkbox" id="auto-refresh"> Auto Refresh (30s)</label>
+                    </div>
+                    <div class="map-action-buttons">
+                        <button id="btn-refresh" class="btn secondary"><i class="fas fa-sync-alt"></i> Refresh</button>
+                        <button id="btn-fit-all" class="btn"><i class="fas fa-expand"></i> Fit All</button>
+                    </div>
+                </div>
+                <div id="loading" class="loading-placeholder">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading node positions...</p>
+                </div>
+                <div id="error" class="error-placeholder" style="display: none;"></div>
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const deviceIcons = { wifi: '📶', router: '📡', mobile: '📱', base: '🏠', unknown: '📍' };
+        let map;
+        let markers = {};
+        let trajectories = {};
+        const nodeColors = {};
+        const colorPalette = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'];
+        let refreshInterval;
+        let nodeData = {};
+
+        let currentTileLayer = null; 
+        const tileLayers = {
+            osm: {
+                url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                options: {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 18
+                }
+            },
+            dark: {
+                url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                options: {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                    subdomains: 'abcd',
+                    maxZoom: 19
+                }
+            },
+            satellite: {
+                url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                options: {
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                    maxZoom: 18
+                }
+            }
+        };
+
+        function isNumeric(value) { return typeof value === 'number' && !isNaN(value) && isFinite(value); }
+        function getSignalStrength(rssi) { if (!isNumeric(rssi)) return 'unknown'; if (rssi >= -70) return 'excellent'; if (rssi >= -85) return 'good'; if (rssi >= -100) return 'fair'; return 'poor'; }
+        function getNodeType(node) { const name = String(node.long_name || node.short_name || '').toLowerCase(); const hwModel = String(node.hw_model || '').toLowerCase(); const role = String(node.role || '').toUpperCase(); if ((name.includes('router') || name.includes('relay')) || role === 'ROUTER' || role === 'ROUTER_CLIENT') { return 'router'; } else if (name.includes('mobile') || name.includes('car') || name.includes('/m') || hwModel.includes('tracker') || name.includes('track')) { return 'mobile'; } else if (name.includes('base') || name.includes('home')) { return 'base'; } else if (hwModel.includes('wifi') || name.includes('wifi')) { return 'wifi'; } else { return 'unknown'; } }
+        function getNodeIcon(node) { const type = getNodeType(node); return deviceIcons[type] || deviceIcons.unknown; }
+        function formatTimeAgo(unixTimestamp) { if (!isNumeric(unixTimestamp)) return 'never'; const seconds = Math.floor(Date.now() / 1000 - unixTimestamp); if (seconds < 0) return 'n/a'; const intervals = [{ label: 'y', seconds: 31536000 }, { label: 'mo', seconds: 2592000 }, { label: 'd', seconds: 86400 }, { label: 'h', seconds: 3600 }, { label: 'm', seconds: 60 }]; for (const interval of intervals) { const count = Math.floor(seconds / interval.seconds); if (count >= 1) return `${count}${interval.label} ago`; } return `${Math.max(0, seconds)}s ago`; }
+        function escapeHtml(unsafe) {
+            if (unsafe === null || unsafe === undefined) return '';
+            return String(unsafe)
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+        function updateMapStatus(statusClass, text) {
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            if (statusIndicator) {
+                statusIndicator.className = 'status-indicator ' + statusClass;
+            }
+            if (statusText) {
+                statusText.textContent = text;
+            }
+        }
+
+        async function initializeMap() {
+            try {
+                updateMapStatus('connecting', 'Initializing Map...');
+                map = L.map('map').setView([0, 0], 2);
+
+                currentTileLayer = L.tileLayer(tileLayers.satellite.url, tileLayers.satellite.options);
+                currentTileLayer.addTo(map);
+
+                document.getElementById('map-style').addEventListener('change', function(e) {
+                    changeMapStyle(e.target.value);
+                });
+
+                setupEventListeners();
+                await fetchAllNodePositions();
+            } catch (error) {
+                console.error("Map Initialization Failed:", error);
+                updateMapStatus('error', 'Map initialization error.');
+                const errorEl = document.getElementById('error');
+                if (errorEl) {
+                    errorEl.textContent = `Map Init Error: ${error.message}`;
+                    errorEl.style.display = 'block';
+                }
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) loadingEl.style.display = 'none';
+            }
+        }
+        
+        function changeMapStyle(styleKey) {
+            if (currentTileLayer) {
+                map.removeLayer(currentTileLayer);
+            }
+            if (tileLayers[styleKey]) {
+                currentTileLayer = L.tileLayer(tileLayers[styleKey].url, tileLayers[styleKey].options);
+                currentTileLayer.addTo(map);
+            } else { 
+                currentTileLayer = L.tileLayer(tileLayers.osm.url, tileLayers.osm.options);
+                currentTileLayer.addTo(map);
+                console.warn(`Map style "${styleKey}" not found. Defaulting to OSM.`);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('btn-refresh').addEventListener('click', fetchAllNodePositions);
+            document.getElementById('btn-fit-all').addEventListener('click', () => {
+                fitMapToAllMarkers();
+            });
+            document.getElementById('show-all').addEventListener('change', updateLayerVisibility);
+            document.getElementById('show-trajectories').addEventListener('change', updateLayerVisibility);
+            document.getElementById('auto-refresh').addEventListener('change', () => {
+                clearInterval(refreshInterval);
+                if (document.getElementById('auto-refresh').checked) {
+                    refreshInterval = setInterval(fetchAllNodePositions, 30000);
+                    console.log("Auto-refresh enabled.");
+                } else {
+                    console.log("Auto-refresh disabled.");
+                }
+            });
+
+            map.on('dragstart zoomstart', () => {
+                document.getElementById('btn-fit-all').classList.remove('active');
+            });
+        }
+
+        function updateLayerVisibility() {
+            const showAll = document.getElementById('show-all').checked;
+            const showTrajectories = document.getElementById('show-trajectories').checked;
+            console.log(`Updating visibility: ShowAll=${showAll}, ShowTrajectories=${showTrajectories}`);
+
+            const searchInput = document.getElementById('legend-search');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            const legendContentDiv = document.querySelector('.legend-content'); // Assuming legend content is identifiable
+            let visibleNodeIdsFromSearch = new Set();
+            const isSearchActive = searchTerm !== '';
+
+            if (isSearchActive && legendContentDiv) {
+                const legendItems = legendContentDiv.querySelectorAll('.node-legend-entry'); // Make sure legend items have this class
+                legendItems.forEach(item => {
+                    if (!item.classList.contains('hidden-by-search')) {
+                        visibleNodeIdsFromSearch.add(item.getAttribute('data-node-id'));
+                    }
+                });
+            }
+            
+            Object.keys(markers).forEach(nodeId => {
+                const nodeIsVisibleBySearch = !isSearchActive || visibleNodeIdsFromSearch.has(nodeId);
+
+                if (markers[nodeId]) {
+                    markers[nodeId].forEach((marker) => { // index removed as not directly used here for logic
+                        const isCurrentLocMarker = marker instanceof L.Marker && !(marker instanceof L.CircleMarker);
+
+                        if (nodeIsVisibleBySearch) {
+                            if (showAll || (isCurrentLocMarker && !showAll) ) {
+                                 if (!map.hasLayer(marker)) marker.addTo(map);
+                            } else {
+                                if (map.hasLayer(marker)) marker.remove();
+                            }
+                        } else { 
+                             if (map.hasLayer(marker)) marker.remove();
+                        }
+                    });
+                }
+
+                if (trajectories[nodeId]) {
+                    if (nodeIsVisibleBySearch && showAll && showTrajectories) {
+                        if (!map.hasLayer(trajectories[nodeId])) trajectories[nodeId].addTo(map);
+                    } else {
+                        if (map.hasLayer(trajectories[nodeId])) trajectories[nodeId].remove();
+                    }
+                }
+            });
+            
+            // Re-apply search filtering for map markers if it was active
+            const searchInputElement = document.getElementById('legend-search');
+            if (searchInputElement && searchInputElement.value.trim() !== '') {
+                 filterMapMarkersBySearch(visibleNodeIdsFromSearch, false); // Pass existing set
+            } else if (searchInputElement) { // Search is empty, ensure all potential markers are considered by global filters
+                 filterMapMarkersBySearch(new Set(Object.keys(nodeData)), true);
+            }
+        }
+
+
+        function createCustomIcon(node, color) {
+            const nodeIcon = getNodeIcon(node);
+            const iconHtml = `
+                <div style="background-color: ${color};
+                            width: 40px; height: 40px; border-radius: 50%;
+                            display: flex; align-items: center; justify-content: center;
+                            border: 2px solid white; font-size: 20px;
+                            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+                            line-height: 1; cursor: pointer;">
+                    ${nodeIcon}
+                </div>`;
+            return L.divIcon({
+                html: iconHtml, className: '', iconSize: [44, 44],
+                iconAnchor: [22, 22], popupAnchor: [0, -22]
+            });
+        }
+
+        async function sendMessageFromPopup(nodeId) {
+            const inputId = `message-input-${nodeId}`;
+            const buttonId = `send-button-${nodeId}`;
+            const feedbackId = `popup-feedback-${nodeId}`;
+            const inputElement = document.getElementById(inputId);
+            const buttonElement = document.getElementById(buttonId);
+            const feedbackElement = document.getElementById(feedbackId);
+
+            if (!inputElement || !buttonElement || !feedbackElement) {
+                console.error(`Could not find message form elements for node ${nodeId}`); return;
+            }
+            const messageText = inputElement.value.trim();
+            if (!messageText) {
+                feedbackElement.textContent = 'Message cannot be empty.';
+                feedbackElement.className = 'popup-message-feedback error'; return;
+            }
+            buttonElement.disabled = true;
+            feedbackElement.textContent = 'Sending...';
+            feedbackElement.className = 'popup-message-feedback';
+
+            try {
+                const response = await fetch('/api/messages', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: messageText, destination: nodeId, channel: 0 })
+                });
+                if (response.ok) {
+                    feedbackElement.textContent = 'Message Processed!';
+                    feedbackElement.className = 'popup-message-feedback success';
+                    inputElement.value = '';
+                    setTimeout(() => {
+                        if(map.getPopup() && map.getPopup().getElement() && map.getPopup().getElement().contains(buttonElement)) {
+                           map.closePopup();
+                        }
+                    }, 1500);
+                } else {
+                    const errorData = await response.json();
+                    feedbackElement.textContent = `Error: ${errorData.detail || response.statusText}`;
+                    feedbackElement.className = 'popup-message-feedback error';
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                feedbackElement.textContent = 'Network error sending message.';
+                feedbackElement.className = 'popup-message-feedback error';
+            } finally {
+                buttonElement.disabled = false;
+            }
+        }
+
+        function createNodePopup(node, nodeId) {
+            const name = escapeHtml(node.long_name || node.short_name || nodeId);
+            const escapedNodeId = escapeHtml(nodeId);
+            let lat, lon, alt;
+            if (node.position && isNumeric(node.position.latitude) && isNumeric(node.position.longitude)) { lat = node.position.latitude; lon = node.position.longitude; alt = node.position.altitude; }
+            else if (node.position_info && isNumeric(node.position_info.latitude) && isNumeric(node.position_info.longitude)) { lat = node.position_info.latitude; lon = node.position_info.longitude; alt = node.position_info.altitude; }
+            else if (isNumeric(node.latitude) && isNumeric(node.longitude)) { lat = node.latitude; lon = node.longitude; alt = node.altitude; }
+            let positionInfo = 'N/A';
+            if (isNumeric(lat) && isNumeric(lon)) {
+                positionInfo = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                if (isNumeric(alt)) positionInfo += ` (${alt.toFixed(0)}m)`;
+            }
+            const batteryRaw = node.battery_level ?? (node.deviceMetrics && node.deviceMetrics.batteryLevel) ?? (node.device_metrics_info && node.device_metrics_info.batteryLevel);
+            const batteryInfo = isNumeric(batteryRaw) ? `${batteryRaw}%` : 'N/A';
+            const rssiRaw = node.rssi ?? node.rxRssi ?? (node.snr_info && node.snr_info.last_rssi);
+            const snrRaw = node.snr ?? node.rxSnr ?? (node.snr_info && node.snr_info.last_snr);
+            let signalInfo = 'N/A';
+            if (isNumeric(rssiRaw)) {
+                let signalClass = getSignalStrength(rssiRaw);
+                signalInfo = `<span class="signal-indicator signal-${signalClass}">RSSI: ${rssiRaw} dBm</span>`;
+                if (isNumeric(snrRaw)) signalInfo += ` SNR: ${snrRaw.toFixed(1)}`;
+            } else if (isNumeric(snrRaw)){ signalInfo = `SNR: ${snrRaw.toFixed(1)}`; }
+
+            return `
+                <div class="node-popup">
+                    <h3>${name}</h3>
+                    <table>
+                        <tr><td>Node ID</td><td>${escapedNodeId}</td></tr>
+                        <tr><td>Hardware</td><td>${escapeHtml(node.hw_model || node.hardware || 'N/A')}</td></tr>
+                        <tr><td>Battery</td><td>${escapeHtml(batteryInfo)}</td></tr>
+                        <tr><td>Last Heard</td><td>${escapeHtml(formatTimeAgo(node.last_heard || node.lastHeard))}</td></tr>
+                        <tr><td>Signal</td><td>${signalInfo}</td></tr>
+                        <tr><td>Location</td><td>${escapeHtml(positionInfo)}</td></tr>
+                    </table>
+                    <div class="popup-message-form">
+                        <label for="message-input-${escapedNodeId}">Send Message:</label>
+                        <input type="text" id="message-input-${escapedNodeId}" placeholder="Type your message..." />
+                        <button id="send-button-${escapedNodeId}">Send</button>
+                        <div class="popup-message-feedback" id="popup-feedback-${escapedNodeId}"></div>
+                    </div>
+                </div>`;
+        }
+
+        function createHistoryPopup(nodeInfo, pos, nodeId) {
+            const nodeName = escapeHtml(nodeInfo.long_name || nodeInfo.short_name || nodeId);
+            const escapedNodeId = escapeHtml(nodeId);
+            const lat = pos.latitude; const lon = pos.longitude; const alt = pos.altitude; const time = pos.time;
+            let positionInfo = 'N/A';
+            if (isNumeric(lat) && isNumeric(lon)) {
+                positionInfo = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                if (isNumeric(alt)) positionInfo += ` (${alt.toFixed(0)}m)`;
+            }
+            return `
+                <div class="node-popup">
+                    <h3>${nodeName} - History</h3>
+                    <table>
+                        <tr><td>Node ID</td><td>${escapedNodeId}</td></tr>
+                        <tr><td>Location</td><td>${escapeHtml(positionInfo)}</td></tr>
+                        <tr><td>Time</td><td>${isNumeric(time) ? new Date(time * 1000).toLocaleString() : 'N/A'}</td></tr>
+                    </table>
+                </div>`;
+        }
+        
+        function createLegend() {
+            const legendControl = L.control({ position: 'bottomright' });
+            legendControl.onAdd = function(mapInstance) {
+                const legendDiv = L.DomUtil.create('div', 'legend');
+        
+                const legendHeaderDiv = L.DomUtil.create('div', 'legend-header', legendDiv);
+                const headerTitle = L.DomUtil.create('h4', '', legendHeaderDiv); // h4 for title
+                headerTitle.innerHTML = 'Nodes'; // More generic title
+        
+                const minimizeButton = L.DomUtil.create('button', 'btn-minimize', legendHeaderDiv);
+                minimizeButton.id = 'legend-minimize-btn';
+                minimizeButton.innerHTML = '<i class="fas fa-minus"></i>';
+                minimizeButton.title = "Toggle Legend";
+        
+                const searchContainerDiv = L.DomUtil.create('div', 'legend-search-container', legendDiv);
+                const searchInput = L.DomUtil.create('input', '', searchContainerDiv);
+                searchInput.type = 'text';
+                searchInput.id = 'legend-search';
+                searchInput.placeholder = 'Search (name or ID)...';
+        
+                const legendContentDiv = L.DomUtil.create('div', 'legend-content', legendDiv);
+        
+                let nodeTypesHtml = '<h5>Device Types</h5>'; // Use h5 if h4 is for main title
+                Object.entries(deviceIcons).forEach(([type, icon]) => {
+                    nodeTypesHtml += `
+                        <div class="legend-item">
+                            <div>${icon}</div>
+                            <div style="margin-left: 10px;">${escapeHtml(type.charAt(0).toUpperCase() + type.slice(1))}</div>
+                        </div>`;
+                });
+        
+                let nodeIdsHtml = '<h5 style="margin-top:10px;">Node List</h5>';
+                const sortedNodeColors = Object.entries(nodeColors).sort(([idA], [idB]) => {
+                    const nameA = nodeData[idA] ? (nodeData[idA].long_name || nodeData[idA].short_name || idA) : idA;
+                    const nameB = nodeData[idB] ? (nodeData[idB].long_name || nodeData[idB].short_name || idB) : idB;
+                    return nameA.localeCompare(nameB);
+                });
+        
+                sortedNodeColors.forEach(([nodeId, color]) => {
+                    const node = nodeData[nodeId];
+                    const name = node ? (node.long_name || node.short_name || nodeId) : nodeId;
+                    const escapedNodeId = escapeHtml(nodeId);
+                    // Added data-node-name for searching
+                    nodeIdsHtml += `
+                        <div class="legend-item clickable node-legend-entry" data-node-id="${escapedNodeId}" data-node-name="${escapeHtml(name).toLowerCase()}">
+                            <div class="legend-color" style="background-color:${color};"></div>
+                            <div>${escapeHtml(name)}</div>
+                        </div>`;
+                });
+                
+                legendContentDiv.innerHTML = nodeTypesHtml + nodeIdsHtml;
+        
+                minimizeButton.addEventListener('click', () => {
+                    legendDiv.classList.toggle('minimized');
+                    const icon = minimizeButton.querySelector('i');
+                    if (legendDiv.classList.contains('minimized')) {
+                        icon.classList.remove('fa-minus'); icon.classList.add('fa-plus');
+                    } else {
+                        icon.classList.remove('fa-plus'); icon.classList.add('fa-minus');
+                    }
+                });
+        
+                searchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase().trim();
+                    const legendItems = legendContentDiv.querySelectorAll('.node-legend-entry');
+                    let visibleNodeIds = new Set();
+        
+                    legendItems.forEach(item => {
+                        const nodeId = item.getAttribute('data-node-id').toLowerCase(); // search nodeId too
+                        const nodeName = item.getAttribute('data-node-name'); // already lowercased
+                        const nodeInfoText = `${nodeId} ${nodeName}`;
+        
+                        if (nodeInfoText.includes(searchTerm)) {
+                            item.classList.remove('hidden-by-search');
+                            visibleNodeIds.add(item.getAttribute('data-node-id')); // Use original case ID for map keys
+                        } else {
+                            item.classList.add('hidden-by-search');
+                        }
+                    });
+                    filterMapMarkersBySearch(visibleNodeIds, searchTerm === '');
+                });
+                
+                legendContentDiv.querySelectorAll('.node-legend-entry').forEach(itemDiv => {
+                    itemDiv.addEventListener('click', function() {
+                        const targetNodeId = this.getAttribute('data-node-id');
+                        const targetMarkersArray = markers[targetNodeId];
+                        const mainMarker = targetMarkersArray?.find(m => m instanceof L.Marker && !(m instanceof L.CircleMarker));
+                        if (mainMarker && mainMarker.getLatLng) {
+                            try {
+                                const latLng = mainMarker.getLatLng();
+                                map.flyTo(latLng, 16, { animate: true, duration: 1 });
+                                setTimeout(() => { if(mainMarker._map) mainMarker.openPopup(); }, 1000); // Check if marker is on map
+                                document.getElementById('btn-fit-all').classList.remove('active');
+                            } catch (e) { console.error("Error flying/opening popup:", targetNodeId, e); }
+                        } else { console.warn(`Main marker not found for ${targetNodeId}`); }
+                    });
+                });
+        
+                L.DomEvent.disableClickPropagation(legendDiv);
+                L.DomEvent.disableScrollPropagation(legendDiv);
+                return legendDiv;
+            };
+            return legendControl;
+        }
+
+        function filterMapMarkersBySearch(visibleNodeIds, isSearchEmpty) {
+            const showAllCheckbox = document.getElementById('show-all').checked;
+            const showTrajectoriesCheckbox = document.getElementById('show-trajectories').checked;
+        
+            Object.keys(markers).forEach(nodeId => {
+                const nodeIsVisibleBySearch = isSearchEmpty || visibleNodeIds.has(nodeId);
+                
+                if (markers[nodeId]) {
+                    markers[nodeId].forEach((marker) => {
+                        const isCurrentLocMarker = marker instanceof L.Marker && !(marker instanceof L.CircleMarker);
+        
+                        if (nodeIsVisibleBySearch) {
+                            if ( (showAllCheckbox) || (isCurrentLocMarker && !showAllCheckbox) ) {
+                                 if (!map.hasLayer(marker)) marker.addTo(map);
+                            } else {
+                                if (map.hasLayer(marker)) marker.remove();
+                            }
+                        } else {
+                            if (map.hasLayer(marker)) marker.remove();
+                        }
+                    });
+                }
+        
+                if (trajectories[nodeId]) {
+                    if (nodeIsVisibleBySearch && showAllCheckbox && showTrajectoriesCheckbox) {
+                        if (!map.hasLayer(trajectories[nodeId])) trajectories[nodeId].addTo(map);
+                    } else {
+                        if (map.hasLayer(trajectories[nodeId])) trajectories[nodeId].remove();
+                    }
+                }
+            });
+        }
+
+        async function fetchAllNodePositions() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            updateMapStatus('connecting', 'Fetching node data...');
+            if (loadingEl) loadingEl.style.display = 'block';
+            if (errorEl) errorEl.style.display = 'none';
+
+            const legendToRemove = map.legendControl; // Use specific name if you assign it: map.legendControl
+
+            try {
+                console.log("Clearing existing map layers...");
+                Object.values(markers).flat().forEach(marker => { if (map.hasLayer(marker)) marker.remove(); });
+                Object.values(trajectories).forEach(trajectory => { if (map.hasLayer(trajectory)) trajectory.remove(); });
+                markers = {}; trajectories = {};
+
+                const nodesResponse = await fetch('/api/nodes');
+                if (!nodesResponse.ok) { throw new Error(`Failed to fetch nodes: ${nodesResponse.status} ${nodesResponse.statusText} (URL: ${nodesResponse.url})`); }
+                const fetchedNodes = await nodesResponse.json(); // Use a different name to avoid conflict with global `nodes`
+                nodeData = fetchedNodes; // Assign to global nodeData
+                console.log(`Processing ${Object.keys(nodeData).length} nodes...`);
+
+                let colorIndex = Object.keys(nodeColors).length; // Keep existing color assignment logic
+                let nodesWithValidPosition = 0;
+                let historyPointsProcessed = 0;
+                const historyFetchPromises = [];
+
+                for (const [nodeId, nodeInfo] of Object.entries(nodeData)) {
+                    let currentLat, currentLon;
+                    if (nodeInfo.position && isNumeric(nodeInfo.position.latitude) && isNumeric(nodeInfo.position.longitude)) { currentLat = nodeInfo.position.latitude; currentLon = nodeInfo.position.longitude; }
+                    else if (nodeInfo.position_info && isNumeric(nodeInfo.position_info.latitude) && isNumeric(nodeInfo.position_info.longitude)) { currentLat = nodeInfo.position_info.latitude; currentLon = nodeInfo.position_info.longitude; }
+                    else if (isNumeric(nodeInfo.latitude) && isNumeric(nodeInfo.longitude)) { currentLat = nodeInfo.latitude; currentLon = nodeInfo.longitude; }
+                    else { console.log(`Node ${nodeId} (${nodeInfo.long_name || nodeInfo.short_name || 'N/A'}): No valid current position. Skipping marker.`); continue; }
+
+                    nodesWithValidPosition++;
+                    markers[nodeId] = [];
+                    if (!nodeColors[nodeId]) { nodeColors[nodeId] = colorPalette[colorIndex % colorPalette.length]; colorIndex++; }
+                    const color = nodeColors[nodeId];
+                    const icon = createCustomIcon(nodeInfo, color);
+
+                    try {
+                        const currentMarker = L.marker([currentLat, currentLon], { icon: icon });
+                        currentMarker.bindPopup(() => createNodePopup(nodeInfo, nodeId));
+                        currentMarker.on('popupopen', () => {
+                            const popupNodeId = nodeId; // Capture nodeId for the closure
+                            setTimeout(() => {
+                                const sendButton = document.getElementById(`send-button-${popupNodeId}`);
+                                if (sendButton) {
+                                    sendButton.onclick = null; // Clear previous
+                                    sendButton.onclick = () => sendMessageFromPopup(popupNodeId);
+                                }
+                            }, 100);
+                        });
+                        markers[nodeId].push(currentMarker);
+                        // Visibility will be handled by updateLayerVisibility or search filter
+                    } catch (e) { console.error(`Error creating current marker for ${nodeId}:`, e); continue; }
+
+                    historyFetchPromises.push(
+                        fetch(`/api/nodes/${encodeURIComponent(nodeId)}/history/positions?limit=100`)
+                            .then(response => { if (!response.ok) { console.warn(`History fetch failed for ${nodeId}: ${response.status}`); return []; } return response.json(); })
+                            .then(positions => {
+                                if (!Array.isArray(positions)) { console.warn(`Non-array history for ${nodeId}`); return; }
+                                const validHistoryPositions = positions.filter(p => isNumeric(p?.latitude) && isNumeric(p?.longitude) && isNumeric(p?.time)).sort((a, b) => a.time - b.time);
+                                const historyPointsLatLng = [];
+                                validHistoryPositions.forEach((pos, index) => {
+                                    const isRedundant = (index === validHistoryPositions.length - 1 && pos.latitude === currentLat && pos.longitude === currentLon);
+                                    if (!isRedundant) {
+                                        try {
+                                            const historyMarker = L.circleMarker([pos.latitude, pos.longitude], { radius: 5, color: '#333', weight: 1, opacity: 0.8, fillColor: color, fillOpacity: 0.6 });
+                                            historyMarker.bindPopup(createHistoryPopup(nodeInfo, pos, nodeId));
+                                            markers[nodeId].push(historyMarker);
+                                            historyPointsProcessed++;
+                                        } catch (e) { console.error(`Error creating history marker for ${nodeId}:`, e); }
+                                    }
+                                    historyPointsLatLng.push([pos.latitude, pos.longitude]);
+                                });
+                                let polylinePoints = historyPointsLatLng;
+                                if (historyPointsLatLng.length > 0) {
+                                    const lastHist = historyPointsLatLng[historyPointsLatLng.length - 1];
+                                    if (currentLat !== lastHist[0] || currentLon !== lastHist[1]) {
+                                        polylinePoints = [...historyPointsLatLng, [currentLat, currentLon]];
+                                    }
+                                } else if (currentLat !== undefined && currentLon !== undefined) {
+                                    // No history, but current position exists. Polyline might not be needed or just be the current point (handled by length check)
+                                }
+                                if (polylinePoints.length > 1) {
+                                    try {
+                                        trajectories[nodeId] = L.polyline(polylinePoints, { color: color, weight: 2, opacity: 0.7, dashArray: '5, 5' });
+                                    } catch (e) { console.error(`Error creating polyline for ${nodeId}:`, e); }
+                                }
+                            }).catch(err => console.warn(`Processing history failed for ${nodeId}:`, err))
+                    );
+                }
+
+                await Promise.all(historyFetchPromises);
+                console.log("History fetches complete.");
+
+                if (map.legendControl && typeof map.legendControl.remove === 'function') {
+                    try { map.legendControl.remove(); console.log("Previous legend removed."); }
+                    catch (e) { console.warn("Error removing previous legend:", e); }
+                }
+                map.legendControl = createLegend(); // Store on map object
+                map.legendControl.addTo(map);
+                console.log("New legend added.");
+
+                updateLayerVisibility(); // Apply current filter states to newly fetched data
+                fitMapToAllMarkers();    // Fit to all *relevant* markers
+                updateMapStatus('connected', `Found ${nodesWithValidPosition} nodes. ${historyPointsProcessed} history pts. Updated: ${new Date().toLocaleTimeString()}`);
+            } catch (err) {
+                console.error('FATAL Error during map update:', err);
+                updateMapStatus('error', 'Failed to load data.');
+                if (errorEl) { errorEl.textContent = `Failed to update map: ${err.message}`; errorEl.style.display = 'block'; }
+                // map.legendControl = null; // or map.legend if that was the old name
+            } finally {
+                if (loadingEl) loadingEl.style.display = 'none';
+            }
+        }
+        
+        function fitMapToAllMarkers() {
+            const allMarkerCoords = [];
+            const legendSearchInput = document.getElementById('legend-search');
+            const currentSearchTerm = legendSearchInput ? legendSearchInput.value.toLowerCase().trim() : '';
+            const isSearchActive = currentSearchTerm !== '';
+        
+            Object.entries(markers).forEach(([nodeId, nodeMarkers]) => {
+                let nodeIsVisibleBySearch = true;
+                if (isSearchActive) {
+                    const legendEntry = document.querySelector(`.legend-item.node-legend-entry[data-node-id="${escapeHtml(nodeId)}"]`); // Ensure ID is escaped if needed for selector
+                    if (legendEntry && legendEntry.classList.contains('hidden-by-search')) {
+                        nodeIsVisibleBySearch = false;
+                    }
+                }
+        
+                if (nodeIsVisibleBySearch) {
+                    nodeMarkers.forEach(marker => {
+                        if (marker && typeof marker.getLatLng === 'function' && map.hasLayer(marker)) {
+                            try {
+                                const latLng = marker.getLatLng();
+                                if (latLng && isNumeric(latLng.lat) && isNumeric(latLng.lng)) {
+                                    allMarkerCoords.push(latLng);
+                                }
+                            } catch (e) { console.error("Error getting LatLng from marker for fit:", e, marker); }
+                        }
+                    });
+        
+                    const showTrajectories = document.getElementById('show-trajectories').checked;
+                    const showAllNodes = document.getElementById('show-all').checked; 
+        
+                    if (showAllNodes && showTrajectories && trajectories[nodeId] && map.hasLayer(trajectories[nodeId])) {
+                         if (typeof trajectories[nodeId].getLatLngs === 'function') {
+                            try {
+                                trajectories[nodeId].getLatLngs().flat().forEach(latLng => {
+                                    if (latLng && isNumeric(latLng.lat) && isNumeric(latLng.lng)) {
+                                        allMarkerCoords.push(latLng);
+                                    }
+                                });
+                            } catch(e) { console.error("Error getting LatLngs from polyline for fit:", e, trajectories[nodeId]); }
+                        }
+                    }
+                }
+            });
+        
+            if (allMarkerCoords.length > 0) {
+                const bounds = L.latLngBounds(allMarkerCoords);
+                if (bounds.isValid()) {
+                    console.log(`Fitting map to bounds of ${allMarkerCoords.length} visible points.`);
+                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: true });
+                    document.getElementById('btn-fit-all').classList.add('active');
+                } else {
+                    console.warn("Fit bounds called, but calculated bounds for visible items are invalid.");
+                }
+            } else {
+                console.warn("Fit bounds called, but no visible markers or trajectory points found to calculate bounds (possibly due to search filter).");
+                // map.setView([0, 0], 2); // Avoid aggressive reset if nothing is visible.
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeMap);
+    </script>
+
+    <script>
+    (function() {
+        // This script was present twice in the original, using the more detailed one.
+        // The first, simpler one is omitted.
+        const LOCAL_CONFIG_API_URL = '/api/system/config/'; 
+        const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version'; 
+
+        const instVerSpan = document.getElementById('md-installed-version');
+        const updateContainer = document.getElementById('md-update-container');
+        const latestVersionSpan = document.getElementById('md-latest-version');
+        const updateModal = document.getElementById('md-update-modal'); 
+        const updateBtn = document.getElementById('md-update-btn');
+        const modalCloseBtn = document.getElementById('md-modal-close-btn'); 
+
+        async function fetchLocalConfig() {
+            console.debug(`Workspaceing local config from: ${LOCAL_CONFIG_API_URL}`);
+            try {
+                const response = await fetch(LOCAL_CONFIG_API_URL);
+                if (!response.ok) {
+                    console.error(`Error fetching local config: ${response.status} ${response.statusText}`);
+                    let errorBody = 'Could not read error body.';
+                    try { errorBody = await response.text(); } catch(e){}
+                    console.error("Local config error body:", errorBody);
+                    return null;
+                }
+                const configData = await response.json();
+                console.debug("Received local config data:", configData);
+                return configData;
+            } catch (error) {
+                console.error('Failed to fetch or parse local configuration:', error);
+                return null;
+            }
+        }
+
+        async function fetchExternalVersion() {
+            console.debug(`Workspaceing latest version from: ${EXTERNAL_VERSION_API_URL}`);
+            try {
+                const response = await fetch(EXTERNAL_VERSION_API_URL);
+                if (!response.ok) {
+                    console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                    let errorBody = 'Could not read error body.';
+                    try { errorBody = await response.text(); } catch(e){}
+                    console.error("External version error body:", errorBody);
+                    return null;
+                }
+                const versionData = await response.json();
+                console.debug("Received external version data:", versionData);
+                return versionData;
+            } catch (error) {
+                console.error('Error fetching or parsing external version:', error);
+                return null;
+            }
+        }
+
+        function compareVersions(v1, v2) {
+            if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+                console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+                return 0;
+            }
+            try {
+                const p1 = v1.substring(1).split('.').map(Number);
+                const p2 = v2.substring(1).split('.').map(Number);
+                if (p1.some(isNaN) || p2.some(isNaN)) {
+                    console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                    return 0; 
+                }
+                const len = Math.max(p1.length, p2.length);
+                for (let i = 0; i < len; i++) {
+                    const n1 = p1[i] || 0; 
+                    const n2 = p2[i] || 0;
+                    if (n1 < n2) return -1;
+                    if (n1 > n2) return 1;
+                }
+                return 0; 
+            } catch (e) {
+                console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+                return 0; 
+            }
+        }
+
+        async function initFooter() {
+            if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+                console.error('Footer init failed: missing display elements.');
+                if (instVerSpan) instVerSpan.textContent = 'Error!';
+                return;
+            }
+            if (updateBtn && (!updateModal || !modalCloseBtn)) {
+                console.warn('Modal elements missing. Update info button might not work.');
+            }
+
+            let installedVersion = null;
+            const localConfig = await fetchLocalConfig();
+            if (localConfig && localConfig.INSTALLED_VERSION) {
+                installedVersion = localConfig.INSTALLED_VERSION.trim();
+                instVerSpan.textContent = installedVersion; 
+                instVerSpan.style.color = ''; 
+            } else {
+                console.error("Could not retrieve installed version from local API.");
+                instVerSpan.textContent = 'Error!';
+                instVerSpan.style.color = 'red';
+                return; 
+            }
+
+            const externalData = await fetchExternalVersion();
+            if (externalData && externalData.version && typeof externalData.version === 'string') {
+                const latestAvailableVersion = externalData.version.trim();
+                const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+                console.log(`Version Comparison: Installed='${installedVersion}', Latest='${latestAvailableVersion}', Result=${comparisonResult}`);
+
+                if (comparisonResult < 0) {
+                    console.log("Update available!");
+                    latestVersionSpan.textContent = latestAvailableVersion;
+                    updateContainer.style.display = 'flex'; 
+                    if (updateBtn) updateBtn.style.display = 'inline-block';
+                } else { // Covers comparisonResult === 0 and comparisonResult > 0
+                    console.log("Version is up to date or newer than remote.");
+                    updateContainer.style.display = 'none'; 
+                }
+            } else {
+                console.warn("Could not retrieve latest version from external API. Update check skipped.");
+                updateContainer.style.display = 'none';
+            }
+
+            if (updateBtn && updateModal && modalCloseBtn) {
+                updateBtn.addEventListener('click', () => { updateModal.style.display = 'block'; });
+                modalCloseBtn.addEventListener('click', () => { updateModal.style.display = 'none'; });
+                window.addEventListener('click', (e) => { if (e.target === updateModal) updateModal.style.display = 'none'; });
+                document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && updateModal.style.display === 'block') updateModal.style.display = 'none'; });
+            } else {
+                if(updateBtn) updateBtn.style.display = 'none';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', initFooter);
+    })();
+    </script>
+
+    <div id="md-update-modal" style="display: none;"> <div class="md-modal-content">
+            <span class="md-modal-close" id="md-modal-close-btn">&times;</span>
+            <h3><i class="fas fa-arrow-circle-up"></i> Update Available</h3>
+            <p>A newer version of the Mesh Dashboard is available!</p>
+            <p>You can download the latest version from:</p>
+            <p style="text-align: center; margin: 15px 0;">
+                <a href="https://meshdash.co.uk/" target="_blank">https://meshdash.co.uk/</a> </p>
+            <div class="md-modal-note">
+                <i class="fas fa-info-circle"></i> Please check the documentation for update instructions.
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-container">
+        <div class="footer-left">
+            <div class="footer-item">
+                <i class="fas fa-cubes"></i>
+                <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+                <strong>Rusjp</strong>
+            </div>
+            <div class="footer-divider">|</div>
+            <div class="footer-item">
+                <span>Version:</span>
+                <strong id="md-installed-version">Loading...</strong>
+            </div>
+            <div id="md-update-container" style="display: none;">
+                <div class="footer-divider">|</div>
+                <div class="footer-item">
+                    <i class="fas fa-arrow-circle-up"></i>
+                    <span>Update Available:</span>
+                    <strong id="md-latest-version"></strong>
+                    <button id="md-update-btn" class="btn btn-xs primary" style="margin-left: 5px;">Info</button> <button class="debug-button btn btn-xs secondary" id="debug-button" onclick="typeof toggleDebugPanel === 'function' && toggleDebugPanel()" style="margin-left: 5px;">
+                         <i class="fas fa-bug"></i> Debug
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

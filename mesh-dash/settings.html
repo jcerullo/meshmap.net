@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en" class="dark-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic System Configuration</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        /* General Styles (assuming styles.css has base styles) */
+        /* :root {
+            --warning-color: #f59e0b; // Amber 500
+            --warning-darker-color: #d97706; // Amber 600
+            --error-color: #ef4444; // Red 500
+            --error-darker-color: #dc2626; // Red 600
+            --success-color: #10b981; // Emerald 500
+            --primary-color: #3b82f6; // Blue 500
+            --text-secondary: #6b7280; // Gray 500
+            --disabled-bg-color: #9ca3af; // Gray 400
+            --disabled-text-color: #e5e7eb; // Gray 200
+        } */
+
+        #config-settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .config-group {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem 2rem;
+            background-color: var(--card-background, rgba(0,0,0,0.02));
+            box-shadow: var(--shadow-md);
+            margin-bottom: 2rem;
+            transition: all 0.25s ease;
+        }
+
+        .config-group:hover {
+            box-shadow: var(--shadow-lg);
+            border-color: var(--border-highlight);
+        }
+
+        .config-group-header {
+            margin-bottom: 1.75rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .config-group-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .config-group-title i {
+            color: var(--primary-color);
+            opacity: 0.9;
+            font-size: 1.2rem;
+        }
+
+        .config-group-description {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+
+        .config-group-items {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 992px) {
+             .config-group-items {
+                 grid-template-columns: repeat(2, 1fr);
+                 gap: 1.75rem;
+             }
+        }
+        .config-item {
+            background-color: var(--header-background);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1.25rem 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.25s ease-in-out;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .config-item:hover {
+             border-color: var(--border-highlight);
+             box-shadow: var(--shadow-md);
+             transform: translateY(-2px);
+        }
+
+        .config-item.read-only {
+            background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.05);
+            border: 1px dashed var(--border-color);
+        }
+
+        .config-item.read-only:hover {
+            transform: none;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .config-label {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .config-description {
+            font-size: 0.85rem;
+            color: var(--text-tertiary);
+            margin-bottom: 0.75rem;
+            line-height: 1.4;
+        }
+        .config-key {
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-family: var(--mono-font, monospace);
+            font-size: 0.85rem;
+            word-break: break-all;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            opacity: 0.95;
+        }
+        .config-value-area {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .config-value-area input {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border-radius: var(--radius-md);
+            border: 2px solid var(--border-color);
+            background-color: var(--input-background, rgba(0,0,0,0.05));
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-xs);
+            font-family: var(--mono-font, monospace);
+        }
+
+        .config-value-area input:hover {
+            border-color: var(--border-highlight);
+            background-color: var(--input-background-hover, rgba(0,0,0,0.02));
+        }
+
+        .config-value-area input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 59, 130, 246), 0.25);
+            background-color: var(--input-background-focus, rgba(0,0,0,0.01));
+        }
+
+        .config-value-area input[readonly] {
+            background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.05);
+            border-color: rgba(var(--primary-rgb, 59, 130, 246), 0.2);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            box-shadow: none;
+            font-weight: 600;
+        }
+
+        .config-value-area input[readonly]:hover,
+        .config-value-area input[readonly]:focus {
+            border-color: rgba(var(--primary-rgb, 59, 130, 246), 0.2);
+            background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.05);
+            box-shadow: none;
+        }
+
+        .dark-theme .config-value-area input {
+            background-color: rgba(255,255,255,0.08);
+        }
+
+        .dark-theme .config-value-area input:hover {
+            background-color: rgba(255,255,255,0.12);
+        }
+
+        .dark-theme .config-value-area input:focus {
+            background-color: rgba(255,255,255,0.15);
+        }
+        .config-value-area .btn.icon-only {
+             padding: 0.65rem 0.8rem;
+             flex-shrink: 0;
+             line-height: 1;
+             min-width: 42px; /* Ensure buttons have same width */
+             min-height: 42px; /* Ensure buttons have same height */
+             border-radius: var(--radius-md);
+             transform: translateY(0);
+             transition: all 0.2s ease;
+             display: inline-flex; 
+             align-items: center; 
+             justify-content: center; 
+        }
+
+        .config-value-area .btn.icon-only:hover {
+            transform: translateY(-2px);
+        }
+
+        .config-value-area .btn.icon-only:active {
+            transform: translateY(1px);
+        }
+
+        .config-value-area .btn.icon-only i {
+             margin: 0;
+             font-size: 1rem;
+        }
+        .config-status {
+            font-size: 0.75rem;
+            min-height: 1.2em;
+            margin-top: 0.5rem;
+            font-style: italic;
+            transition: all 0.3s ease;
+            opacity: 0;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.4rem;
+        }
+
+        .config-status.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .config-status.saving { color: var(--text-secondary, #6b7280); }
+        .config-status.success { color: var(--success-color, #10b981); }
+        .config-status.error { color: var(--error-color, #ef4444); }
+
+        .config-status i {
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s ease;
+        }
+
+        .config-status.visible i {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .no-data-placeholder, .loading-placeholder {
+             grid-column: 1 / -1;
+             text-align: center;
+             padding: 3rem 2rem;
+             color: var(--text-secondary, #6b7280);
+             background-color: var(--card-background, rgba(0,0,0,0.02));
+             border-radius: var(--radius-md);
+             border: 1px dashed var(--border-color);
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+             gap: 1rem;
+        }
+
+        .loading-placeholder i {
+            color: var(--primary-color, #3b82f6);
+            animation: fa-spin 1.5s linear infinite;
+            font-size: 1.75rem;
+        }
+
+        .no-data-placeholder i {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        #global-config-status {
+             margin-top: 1.25rem;
+             margin-bottom: 1rem; /* Added margin for better spacing */
+             padding: 1rem 1.25rem;
+             border-radius: var(--radius-md);
+             display: none; /* Initially hidden */
+             font-size: 0.95rem;
+             text-align: center;
+             animation: fade-in 0.3s ease;
+             border-width: 1px; /* Ensure border is always there for consistent height */
+             border-style: solid; /* Ensure border is always there for consistent height */
+             border-color: transparent; /* Initially transparent */
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #global-config-status.success {
+            background-color: rgba(16, 185, 129, 0.1); 
+            border-color: rgba(16, 185, 129, 0.3);
+            color: var(--success-color, #10b981); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        #global-config-status.error {
+            background-color: rgba(239, 68, 68, 0.1); 
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--error-color, #ef4444); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        #global-config-status.info {
+            background-color: rgba(59, 130, 246, 0.1); 
+            border-color: rgba(59, 130, 246, 0.3);
+            color: var(--primary-color, #3b82f6); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+
+        .config-value-area input.modified {
+            background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.08);
+            border-color: var(--primary-color, #3b82f6);
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .toggle-input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
+        }
+
+        .toggle-slider {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+            background-color: var(--border-color);
+            border-radius: 34px;
+            transition: .4s;
+            flex-shrink: 0;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            border-radius: 50%;
+            transition: .3s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-input:checked + .toggle-slider {
+            background-color: var(--primary-color, #3b82f6);
+        }
+
+        .toggle-input:focus + .toggle-slider {
+            box-shadow: 0 0 1px var(--primary-color, #3b82f6);
+        }
+
+        .toggle-input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .toggle-label {
+            margin-left: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary, #6b7280);
+        }
+
+        .toggle-input:disabled + .toggle-slider {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .toggle-input:disabled ~ .toggle-label {
+            opacity: 0.6;
+        }
+
+        .toggle-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .config-item.has-toggle .config-value-area {
+            margin-top: 0.75rem;
+        }
+
+        @media (max-width: 576px) {
+            .toggle-area {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .toggle-area .btn {
+                align-self: flex-end;
+                margin-top: 0.75rem;
+            }
+        }
+
+        .btn.warning {
+            background-color: var(--warning-color, #f59e0b); 
+            color: white;
+            border: 1px solid var(--warning-color, #f59e0b);
+        }
+
+        .btn.warning:hover {
+            background-color: var(--warning-darker-color, #d97706); 
+            border-color: var(--warning-darker-color, #d97706);
+        }
+        .btn.warning:disabled {
+            background-color: var(--disabled-bg-color, #9ca3af); 
+            border-color: var(--disabled-bg-color, #9ca3af);
+            color: var(--disabled-text-color, #e5e7eb); 
+            cursor: not-allowed;
+        }
+
+        .btn.danger {
+            background-color: var(--error-color, #ef4444); 
+            color: white;
+            border: 1px solid var(--error-color, #ef4444);
+        }
+        .btn.danger:hover {
+            background-color: var(--error-darker-color, #dc2626); 
+            border-color: var(--error-darker-color, #dc2626);
+        }
+        .btn.danger:disabled {
+            background-color: var(--disabled-bg-color, #9ca3af);
+            border-color: var(--disabled-bg-color, #9ca3af);
+            color: var(--disabled-text-color, #e5e7eb);
+            cursor: not-allowed;
+        }
+
+    </style>
+    <script>
+        // Load navigation dynamically
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/static/top_nav.html')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('nav-placeholder').innerHTML = data;
+                    const currentPath = window.location.pathname;
+                    const navLinks = document.querySelectorAll('.nav-link');
+                    navLinks.forEach(link => {
+                        const linkPath = link.getAttribute('href');
+                        if (currentPath === linkPath || (linkPath !== '/' && currentPath.startsWith(linkPath))) {
+                            link.classList.add('active');
+                        }
+                    });
+                })
+                .catch(error => console.error('Error loading navigation:', error));
+        });
+    </script>
+    <script src="/static/nav_loader.js" defer></script>
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-cogs"></i> System <span class="highlight">Configuration</span></h1>
+                <div class="status-container">
+                    <span id="status-indicator" class="status-indicator disconnected"></span>
+                    <span id="status-text">Initializing...</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="theme-toggle-container">
+                    <button id="theme-toggle" class="theme-toggle" title="Toggle dark/light mode">
+                        <i id="theme-icon" class="fas fa-moon"></i>
+                    </button>
+                </div>
+                <div id="local-node-info"><i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong></div>
+                <button class="btn secondary" id="refresh-config-btn" style="margin-left: 1rem;">
+                    <i class="fas fa-sync-alt"></i> Refresh Config
+                </button>
+                </div>
+        </header>
+        <div class="main-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-sliders-h"></i> Configuration Settings</h2>
+                </div>
+                <div class="card-content">
+                    <div id="global-config-status"></div> 
+                    <div id="config-settings-list">
+                        <div class="loading-placeholder">
+                             <i class="fas fa-circle-notch fa-spin"></i>
+                             <span>Loading configuration...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-info-circle"></i> About System Configuration</h2>
+                </div>
+                <div class="card-content">
+                    <div class="instructions">
+                        <h3>Configuration Settings</h3>
+                        <p>This section allows viewing and modifying settings stored in the <code>.mesh-dash_config</code> file.</p>
+
+                        <div class="alert alert-warning">
+                            <p><strong><i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i> Important:</strong> After changing any settings, you <strong>must restart the mesh-dash service</strong> for changes to take effect. Use the <i class="fas fa-power-off"></i> button that appears next to a saved setting. The page will attempt to reconnect and reload automatically.</p>
+                        </div>
+
+                        <h4>Meshtastic Node Connection</h4>
+                        <ul>
+                            <li><strong>Node IP Address</strong> - The IP address where your Meshtastic device can be reached. This must be correct for the dashboard to connect to your mesh network.</li>
+                            <li><strong>Node Port</strong> - The port number used by your Meshtastic device (typically 4403). Must match your device's configuration.</li>
+                        </ul>
+
+                        <h4>Web Interface Settings</h4>
+                        <ul>
+                            <li><strong>Dashboard Host</strong> - The IP address where the dashboard listens for connections. Use 0.0.0.0 to allow access from any IP address, or specify a particular interface.</li>
+                            <li><strong>Dashboard Port</strong> - The port where the web interface will be available. Changing this requires updating any bookmarks or links to the dashboard.</li>
+                        </ul>
+
+                        <h4>Location Settings</h4>
+                        <ul>
+                            <li><strong>Share Local Position</strong> - When enabled, allows this device to detect and share its GPS location on the MeshDash network.</li>
+                            <li><strong>Share Remote Positions</strong> - When enabled, allows this device to share position data from other connected nodes on the MeshDash network.</li>
+                        </ul>
+
+                        <h4>Using This Page</h4>
+                        <ul>
+                            <li>Edit values and click the <i class="fas fa-save"></i> button next to each entry to save changes.</li>
+                            <li>After saving, a <i class="fas fa-power-off"></i> button will appear. Click it to restart the server and apply <strong>all</strong> saved changes.</li>
+                            <li>Use "Refresh Config" to reload current values from the file.</li>
+                            <li>If automatic reload fails after restart, you may need to manually refresh the page.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG_API_URL = '/api/system/config/';
+        const RESTART_API_URL = '/api/system/restart';
+        const STATUS_API_URL = '/api/status';
+
+        // Utility to sanitize HTML content
+        function sanitizeHTML(str) {
+            if (str === null || str === undefined) return '';
+            const temp = document.createElement('div');
+            temp.textContent = String(str); 
+            return temp.innerHTML;
+        }
+
+        // Updates the main status indicator in the header
+        function updateStatus(status, message = null) {
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            const safeStatus = status?.toLowerCase() ?? 'disconnected';
+            const displayStatus = (safeStatus === 'ready' || safeStatus === 'ok' || safeStatus === 'connected' || safeStatus === 'loaded') ? 'connected' : safeStatus;
+            if (statusIndicator) statusIndicator.className = 'status-indicator ' + displayStatus;
+            if (statusText) statusText.textContent = message || status || 'Unknown';
+        }
+
+        // Shows a status message for an individual config item
+        function showStatusMessage(elementId, message, type = 'info', duration = 3000) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            element.innerHTML = message; 
+            element.className = `config-status ${type} visible`;
+
+            if (element.timeoutId) clearTimeout(element.timeoutId);
+            if (duration > 0) {
+                element.timeoutId = setTimeout(() => {
+                    element.textContent = '';
+                    element.className = 'config-status';
+                    element.timeoutId = null;
+                }, duration);
+            }
+        }
+        
+        const configGroups = {
+            "meshtastic_node": {
+                title: "Meshtastic Node Connection",
+                description: "Settings for connecting to your Meshtastic device. These are crucial for the dashboard to communicate with the mesh network.",
+                icon: "fa-wifi",
+                items: [
+                    {key: "MESHTASTIC_HOST", label: "Node IP Address", description: "IP address of your Meshtastic Node (e.g., 192.168.1.100)."},
+                    {key: "MESHTASTIC_PORT", label: "Node Port", description: "Port used by Meshtastic Node (default: 4403)."}
+                ]
+            },
+            "web_server": {
+                title: "MeshDash Web Interface",
+                description: "Configure how the MeshDash web dashboard is served and general application settings.",
+                icon: "fa-server",
+                items: [
+                    {key: "WEBSERVER_HOST", label: "Dashboard Host IP", description: "IP address for MeshDash Panel to listen on (e.g., 0.0.0.0 for all interfaces, 127.0.0.1 for local only)."},
+                    {key: "WEBSERVER_PORT", label: "Dashboard Port", description: "Port used for the MeshDash Panel (e.g., 8000)."},
+                    {key: "DB_PATH", label: "Database Location", description: "Path to the SQLite database file on your device (e.g., /opt/mesh_dash/meshtastic_data.db)."},
+                    {key: "LOG_LEVEL", label: "Log Level", description: "Set the application's logging verbosity (e.g., DEBUG, INFO, WARNING, ERROR, CRITICAL)."},
+                    {key: "AUTH_TOKEN_EXPIRE_MINUTES", label: "Auth Token Expiry (Minutes)", description: "Duration in minutes before an authentication token expires (if authentication is enabled)."}
+                ]
+            },
+            "data_management": {
+                title: "Data & History Management",
+                description: "Settings related to data storage, memory usage, and history retention for Meshtastic packets.",
+                icon: "fa-database",
+                items: [
+                    {key: "MAX_PACKETS_MEMORY", label: "Max Packets in Memory", description: "Maximum number of recent packets to keep in application memory for quick access."},
+                    {key: "HISTORY_DAYS", label: "Packet History Days", description: "Number of days to retain packet history in the database. Older packets may be purged."}
+                ]
+            },
+            "location_sharing": {
+                title: "Location Sharing Configuration",
+                description: "Configure how node location data is detected and shared by this MeshDash instance.",
+                icon: "fa-map-marker-alt",
+                items: [
+                    {key: "SEND_LOCAL_NODE_LOCATION", label: "Share Local Node Position", description: "Allow this MeshDash instance to detect and share its own host's location, if GPS is available to it.", type: "boolean"},
+                    {key: "SEND_OTHER_NODES_LOCATION", label: "Share Remote Node Positions", description: "Allow this MeshDash instance to relay and share position data received from other nodes on the Meshtastic network.", type: "boolean"}
+                ]
+            },
+            "system_information": {
+                title: "System Information",
+                description: "Displays information about the current MeshDash installation.",
+                icon: "fa-info-circle",
+                items: [
+                    {key: "INSTALLED_VERSION", label: "Installed Version", description: "The current version of the MeshDash software.", readonly: true}
+                ]
+            }
+        };
+
+        function renderConfigItem(key, value, label, description, readonly = false, type = "text") {
+            const safeKey = sanitizeHTML(key); 
+            const safeValue = (value === null || value === undefined) ? '' : String(value); 
+            const safeLabel = sanitizeHTML(label || key);
+            const safeDescription = sanitizeHTML(description || "");
+            const elementIdBase = `config-${safeKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`; 
+
+            const isBoolean = type === "boolean" || (typeof value === 'string' && ['true', 'false'].includes(value.toLowerCase()));
+            let inputHtml = '';
+
+            if (isBoolean) {
+                const isChecked = (typeof value === 'boolean' && value) || (typeof value === 'string' && value.toLowerCase() === 'true');
+                inputHtml = `
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="${elementIdBase}-input" class="toggle-input"
+                               ${isChecked ? 'checked' : ''} ${readonly ? 'disabled' : ''}
+                               data-original-value="${safeValue.toLowerCase()}">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">${isChecked ? 'Enabled' : 'Disabled'}</span>
+                    </label>
+                `;
+            } else {
+                inputHtml = `
+                    <input type="text" id="${elementIdBase}-input" class="form-control" value="${sanitizeHTML(safeValue)}"
+                           data-original-value="${sanitizeHTML(safeValue)}" ${readonly ? 'readonly' : ''}>
+                `;
+            }
+
+            return `
+                <div class="config-item ${readonly ? 'read-only' : ''} ${isBoolean ? 'has-toggle' : ''}">
+                    <div class="config-label">${safeLabel}</div>
+                    ${safeDescription ? `<div class="config-description">${safeDescription}</div>` : ''}
+                    <div class="config-value-area ${isBoolean ? 'toggle-area' : ''}">
+                        ${inputHtml}
+                        ${!readonly ? `
+                        <button class="btn primary icon-only" onclick="saveConfigValue('${safeKey}', '${elementIdBase}')" title="Save changes for ${safeLabel}">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button class="btn warning icon-only" id="${elementIdBase}-restart-btn" style="display: none; margin-left: 0.5rem;" onclick="requestServerRestart('${elementIdBase}')" title="Restart server to apply ALL saved changes">
+                            <i class="fas fa-power-off"></i>
+                        </button>
+                        ` : ''}
+                    </div>
+                    <div class="config-status" id="${elementIdBase}-status"></div>
+                </div>
+            `;
+        }
+        
+        async function loadConfigSettings() {
+            const listDiv = document.getElementById('config-settings-list');
+            const globalStatusDiv = document.getElementById('global-config-status'); 
+            if (!listDiv || !globalStatusDiv) return;
+
+            listDiv.innerHTML = `<div class="loading-placeholder"><i class="fas fa-circle-notch fa-spin"></i><span>Loading configuration...</span></div>`;
+            
+            if (!document.body.classList.contains('server-restarting-active')) { // Changed class name
+                 hideGlobalStatus();
+            }
+            updateStatus('connecting', 'Loading config...');
+
+            try {
+                const response = await fetch(CONFIG_API_URL);
+                if (!response.ok) {
+                    let errorMsg = `HTTP error ${response.status}`;
+                    let errorDetail = '';
+                    try {
+                        const errorData = await response.json();
+                        errorDetail = errorData.detail || `Status: ${response.status}`;
+                    } catch (_) {
+                        errorDetail = `Status: ${response.statusText || response.status}`;
+                    }
+                    if (response.status === 404) {
+                        errorMsg = "Configuration file (.mesh-dash_config) not found on server.";
+                        listDiv.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-file-excel"></i><span>${errorMsg}</span></div>`;
+                    } else {
+                         errorMsg = `Failed to load configuration: ${errorDetail}`;
+                         throw new Error(errorMsg); 
+                    }
+                    updateStatus('disconnected', 'Config not found');
+                    if (!document.body.classList.contains('server-restarting-active')) { 
+                        showGlobalStatus(errorMsg, 'error');
+                    }
+                    return;
+                }
+                const configData = await response.json();
+                listDiv.innerHTML = ''; 
+
+                const allKeys = Object.keys(configData);
+                const assignedKeys = new Set();
+
+                for (const groupKey in configGroups) {
+                    const group = configGroups[groupKey];
+                    const hasItemsInGroup = group.items.some(itemDef => allKeys.includes(itemDef.key) && configData.hasOwnProperty(itemDef.key));
+
+                    if (!hasItemsInGroup) continue;
+
+                    let groupHTML = `
+                        <div id="group-${groupKey}" class="config-group">
+                            <div class="config-group-header">
+                                <div class="config-group-title">
+                                    <i class="fas ${group.icon || 'fa-cog'}"></i>
+                                    ${group.title}
+                                </div>
+                                <p class="config-group-description">${group.description}</p>
+                            </div>
+                            <div class="config-group-items">
+                    `;
+                    let itemsAddedToGroupHTML = false;
+                    for (const item of group.items) {
+                        if (configData.hasOwnProperty(item.key)) {
+                            groupHTML += renderConfigItem(
+                                item.key,
+                                configData[item.key],
+                                item.label,
+                                item.description,
+                                item.readonly || false,
+                                item.type || "text"
+                            );
+                            assignedKeys.add(item.key);
+                            itemsAddedToGroupHTML = true;
+                        }
+                    }
+                    groupHTML += `</div></div>`;
+                    if (itemsAddedToGroupHTML) {
+                        listDiv.innerHTML += groupHTML;
+                    }
+                }
+
+                if (assignedKeys.size === 0 && allKeys.length > 0) {
+                    listDiv.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-info-circle"></i><span>Configuration data found, but no matching UI definitions. Check console.</span></div>`;
+                    console.warn("Loaded config data:", configData, "but no items matched UI definitions in configGroups.");
+                    updateStatus('loaded', 'Config data mismatch');
+                } else if (assignedKeys.size === 0) {
+                    listDiv.innerHTML = `<div class="no-data-placeholder"><i class="fas fa-folder-open"></i><span>Config file is empty or contains no recognized settings.</span></div>`;
+                    updateStatus('loaded', 'Config empty');
+                } else {
+                    updateStatus('loaded', `${assignedKeys.size} setting(s) loaded`);
+                    allKeys.forEach(key => {
+                        if (!assignedKeys.has(key)) return;
+                        const elementIdBase = `config-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+                        const inputElement = document.getElementById(`${elementIdBase}-input`);
+                        let itemDef = null;
+                        for (const gk in configGroups) {
+                            itemDef = configGroups[gk].items.find(i => i.key === key);
+                            if (itemDef) break;
+                        }
+
+                        if (inputElement && !(itemDef && itemDef.readonly)) {
+                            if (inputElement.type === 'checkbox') {
+                                inputElement.addEventListener('change', function() {
+                                    const toggleLabel = this.parentElement.querySelector('.toggle-label');
+                                    if (toggleLabel) {
+                                        toggleLabel.textContent = this.checked ? 'Enabled' : 'Disabled';
+                                    }
+                                });
+                            } else {
+                                inputElement.addEventListener('input', function() {
+                                    if (this.value !== this.dataset.originalValue) {
+                                        this.classList.add('modified');
+                                    } else {
+                                        this.classList.remove('modified');
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error fetching config:", error);
+                const errorText = `Error loading configuration: ${error.message}`;
+                listDiv.innerHTML = `<div class="no-data-placeholder" style="grid-column: 1 / -1; color: var(--error-color);"><i class="fas fa-exclamation-triangle"></i> ${sanitizeHTML(errorText)}</div>`;
+                updateStatus('disconnected', 'Error loading config');
+                if (!document.body.classList.contains('server-restarting-active')) {
+                     showGlobalStatus(errorText, 'error');
+                }
+            }
+        }
+
+        function showGlobalStatus(message, type, duration = 5000) { 
+            const globalStatusDiv = document.getElementById('global-config-status');
+            if (!globalStatusDiv) return;
+
+            let icon = '';
+            if (type === 'success') icon = '<i class="fas fa-check-circle"></i>';
+            else if (type === 'error') icon = '<i class="fas fa-exclamation-triangle"></i>';
+            else if (type === 'info') icon = '<i class="fas fa-info-circle"></i>';
+            
+            if (message.includes('fa-spin')) icon = '';
+
+
+            globalStatusDiv.innerHTML = `${icon} ${message}`; 
+            globalStatusDiv.className = type; 
+            globalStatusDiv.style.display = 'flex'; 
+
+            if (globalStatusDiv.timeoutId) clearTimeout(globalStatusDiv.timeoutId);
+            if (duration > 0) {
+                globalStatusDiv.timeoutId = setTimeout(() => {
+                    hideGlobalStatus();
+                }, duration);
+            }
+        }
+
+        function hideGlobalStatus() {
+            const globalStatusDiv = document.getElementById('global-config-status');
+            if (globalStatusDiv) {
+                globalStatusDiv.style.display = 'none';
+                globalStatusDiv.innerHTML = '';
+                globalStatusDiv.className = '';
+                if (globalStatusDiv.timeoutId) {
+                    clearTimeout(globalStatusDiv.timeoutId);
+                    globalStatusDiv.timeoutId = null;
+                }
+            }
+        }
+        
+        async function saveConfigValue(key, elementIdBase) {
+            const inputElement = document.getElementById(`${elementIdBase}-input`);
+            const statusElement = document.getElementById(`${elementIdBase}-status`);
+            const saveButton = inputElement.closest('.config-value-area').querySelector('.btn.primary'); 
+            const restartButton = document.getElementById(`${elementIdBase}-restart-btn`);
+
+            if (!inputElement || !statusElement || !saveButton) {
+                console.error(`Elements not found for key ${key}`);
+                showGlobalStatus(`Error: Could not find elements to save key ${key}`, 'error');
+                return;
+            }
+
+            let newValue;
+            if (inputElement.type === 'checkbox') {
+                newValue = inputElement.checked ? 'true' : 'false';
+                const toggleLabel = inputElement.parentElement.querySelector('.toggle-label');
+                if (toggleLabel) {
+                    toggleLabel.textContent = inputElement.checked ? 'Enabled' : 'Disabled';
+                }
+            } else {
+                newValue = inputElement.value;
+            }
+
+            const originalValue = inputElement.dataset.originalValue;
+            const valueChanged = (inputElement.type === 'checkbox') ?
+                                 (newValue.toLowerCase() !== originalValue.toLowerCase()) :
+                                 (newValue !== originalValue);
+
+            if (!valueChanged) {
+                showStatusMessage(statusElement.id, '<i class="fas fa-info-circle"></i> Value unchanged.', 'info', 2000);
+                return;
+            }
+
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            showStatusMessage(statusElement.id, '<i class="fas fa-sync fa-spin"></i> Saving...', 'saving', 0); 
+
+            try {
+                const response = await fetch(`${CONFIG_API_URL}${encodeURIComponent(key)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: newValue })
+                });
+                const responseData = await response.json();
+                if (!response.ok) {
+                    let errorMsg = responseData.detail || `HTTP error ${response.status}`;
+                    throw new Error(errorMsg);
+                }
+
+                showStatusMessage(statusElement.id, '<i class="fas fa-check-circle"></i> Saved! Restart server to apply.', 'success', 5000);
+                inputElement.dataset.originalValue = newValue; 
+                if (inputElement.type !== 'checkbox') {
+                    inputElement.classList.remove('modified');
+                }
+
+                if (restartButton) {
+                    restartButton.style.display = 'inline-flex';
+                    restartButton.disabled = false; 
+                }
+                
+                const visualFeedbackElement = (inputElement.type === 'checkbox') ? inputElement.closest('.toggle-switch') : inputElement;
+                if (visualFeedbackElement) {
+                    visualFeedbackElement.style.transition = inputElement.type === 'checkbox' ? 'box-shadow 0.2s ease-in-out' : 'background-color 0.2s ease-in-out';
+                    if (inputElement.type === 'checkbox') visualFeedbackElement.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.25)';
+                    else visualFeedbackElement.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+                    
+                    setTimeout(() => {
+                        if (inputElement.type === 'checkbox') visualFeedbackElement.style.boxShadow = '';
+                        else visualFeedbackElement.style.backgroundColor = '';
+                    }, 800);
+                }
+
+            } catch (error) {
+                console.error(`Error saving config key ${key}:`, error);
+                showStatusMessage(statusElement.id, `<i class="fas fa-exclamation-triangle"></i> Error: ${error.message}`, 'error', 5000);
+                
+                const visualFeedbackElement = (inputElement.type === 'checkbox') ? inputElement.closest('.toggle-switch') : inputElement;
+                if (visualFeedbackElement) {
+                    visualFeedbackElement.style.transition = inputElement.type === 'checkbox' ? 'box-shadow 0.2s ease-in-out' : 'background-color 0.2s ease-in-out';
+                     if (inputElement.type === 'checkbox') {
+                        visualFeedbackElement.style.boxShadow = '0 0 0 4px rgba(239, 68, 68, 0.25)';
+                        const wasChecked = originalValue.toLowerCase() === 'true';
+                        inputElement.checked = wasChecked;
+                        const toggleLabel = inputElement.parentElement.querySelector('.toggle-label');
+                        if (toggleLabel) toggleLabel.textContent = wasChecked ? 'Enabled' : 'Disabled';
+                     } else {
+                        visualFeedbackElement.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                     }
+                    setTimeout(() => {
+                        if (inputElement.type === 'checkbox') visualFeedbackElement.style.boxShadow = '';
+                        else visualFeedbackElement.style.backgroundColor = '';
+                    }, 1000);
+                }
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save"></i>';
+            }
+        }
+
+        let pollIntervalId = null;
+        let pollAttempts = 0;
+        const MAX_POLL_ATTEMPTS = 45; 
+        const POLL_INTERVAL_MS = 2000; 
+
+        function checkServerStatusPeriodically() {
+            if (pollIntervalId) clearInterval(pollIntervalId);
+            pollAttempts = 0;
+            document.body.classList.add('server-restarting-active'); // Changed class name for clarity
+
+            showGlobalStatus('<i class="fas fa-sync fa-spin"></i> Server is restarting. Waiting for it to come back online...', 'info', 0); 
+
+            pollIntervalId = setInterval(async () => {
+                pollAttempts++;
+                console.log(`Polling server status... Attempt ${pollAttempts} of ${MAX_POLL_ATTEMPTS}`);
+                try {
+                    const response = await fetch(STATUS_API_URL, { method: 'GET', cache: 'no-store' });
+                    if (response.ok) {
+                        clearInterval(pollIntervalId);
+                        pollIntervalId = null;
+                        document.body.classList.remove('server-restarting-active');
+                        console.log('Server is back online!');
+
+                        // Explicitly hide all restart buttons and ensure save buttons are disabled with spinners
+                        // This is to prevent any visual glitch before the reload.
+                        document.querySelectorAll('.config-value-area .btn.warning').forEach(btn => {
+                            btn.style.display = 'none'; // Hide it
+                            btn.disabled = true; 
+                        });
+                        document.querySelectorAll('.config-value-area .btn.primary').forEach(btn => {
+                            btn.disabled = true;
+                            const icon = btn.querySelector('i');
+                            if (icon) {
+                               icon.className = 'fas fa-spinner fa-spin';
+                            } else {
+                               btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                            }
+                        });
+
+                        showGlobalStatus('<i class="fas fa-check-circle"></i> Server restarted successfully! Reloading page...', 'success', 2000); // Shorter duration
+                        setTimeout(() => {
+                            console.log("Attempting to reload page NOW with forced refresh.");
+                            window.location.reload(true); 
+                        }, 1000); // Reduced delay
+                    } else {
+                        console.warn(`Polling: Server responded with status ${response.status}`);
+                        if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+                            clearInterval(pollIntervalId);
+                            pollIntervalId = null;
+                            document.body.classList.remove('server-restarting-active');
+                            showGlobalStatus('<i class="fas fa-exclamation-triangle"></i> Server restart is taking too long or failed. Please refresh the page manually.', 'error', 0); 
+                            // Re-enable buttons if polling fails, so user isn't stuck
+                            document.querySelectorAll('.config-value-area .btn.primary, .config-value-area .btn.warning').forEach(btn => {
+                                btn.disabled = false;
+                                const icon = btn.querySelector('i');
+                                if (icon && icon.classList.contains('fa-spinner')) { // Only revert if it was a spinner
+                                    if (btn.classList.contains('primary')) icon.className = 'fas fa-save';
+                                    else if (btn.classList.contains('warning')) icon.className = 'fas fa-power-off';
+                                }
+                                // If a restart button was previously hidden (after save, before restart click), it will remain hidden
+                                // if it was visible (because it was clicked), it will now show power-off.
+                                // This is a fallback state. A manual page refresh is still recommended.
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.log('Polling: Server still down or network issue.');
+                    if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+                        clearInterval(pollIntervalId);
+                        pollIntervalId = null;
+                        document.body.classList.remove('server-restarting-active');
+                        showGlobalStatus('<i class="fas fa-exclamation-triangle"></i> Server restart is taking too long or failed. Please refresh the page manually.', 'error', 0); 
+                        // Re-enable buttons as above
+                         document.querySelectorAll('.config-value-area .btn.primary, .config-value-area .btn.warning').forEach(btn => {
+                            btn.disabled = false;
+                            const icon = btn.querySelector('i');
+                            if (icon && icon.classList.contains('fa-spinner')) {
+                                if (btn.classList.contains('primary')) icon.className = 'fas fa-save';
+                                else if (btn.classList.contains('warning')) icon.className = 'fas fa-power-off';
+                            }
+                        });
+                    }
+                }
+            }, POLL_INTERVAL_MS);
+        }
+
+        async function requestServerRestart(elementIdBase) {
+            const clickedRestartButton = document.getElementById(`${elementIdBase}-restart-btn`);
+            const clickedSaveButton = clickedRestartButton ? clickedRestartButton.closest('.config-value-area').querySelector('.btn.primary') : null;
+
+            if (!confirm('Are you sure you want to restart the server? This will apply ALL saved configuration changes and reload the configuration.')) {
+                return;
+            }
+            
+            if (clickedRestartButton) {
+                clickedRestartButton.disabled = true;
+                clickedRestartButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
+            if (clickedSaveButton) {
+                clickedSaveButton.disabled = true; 
+            }
+
+            showGlobalStatus('<i class="fas fa-sync fa-spin"></i> Attempting to restart server...', 'info', 0); 
+
+            try {
+                const response = await fetch(RESTART_API_URL, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                // Regardless of response.ok for a restart command that uses os.execv,
+                // the server is likely going down. So, we proceed to polling.
+                // The main difference is whether we disable only clicked or all buttons initially.
+                // For os.execv, the connection will drop, leading to networkError path usually.
+
+                console.log('Restart command sent to server. Assuming it will restart. Starting status polling.');
+                // Disable ALL config action buttons (save and restart)
+                document.querySelectorAll('.config-value-area .btn.primary, .config-value-area .btn.warning').forEach(btn => {
+                    btn.disabled = true;
+                    const icon = btn.querySelector('i');
+                    if (icon) { 
+                       icon.className = 'fas fa-spinner fa-spin';
+                    } else { // Should not happen if buttons always have icons
+                       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    }
+                });
+                checkServerStatusPeriodically(); // This will add 'server-restarting-active' to body
+
+            } catch (networkError) {
+                // This is the more common path if os.execv causes immediate connection drop
+                console.log('Network error during restart POST. Assuming server is restarting. Starting status polling.', networkError);
+                document.querySelectorAll('.config-value-area .btn.primary, .config-value-area .btn.warning').forEach(btn => {
+                    btn.disabled = true;
+                     const icon = btn.querySelector('i');
+                     if (icon) {
+                       icon.className = 'fas fa-spinner fa-spin';
+                    } else {
+                       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    }
+                });
+                checkServerStatusPeriodically(); // This will add 'server-restarting-active' to body
+            }
+        }
+        
+        function initializeSystemConfigPage() {
+            console.log("System Config page initializing...");
+            updateStatus('connecting', 'Initializing...');
+            const refreshBtn = document.getElementById('refresh-config-btn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => {
+                    if (document.body.classList.contains('server-restarting-active')) {
+                        showGlobalStatus('Server is currently restarting. Please wait.', 'info', 3000);
+                        return;
+                    }
+                    loadConfigSettings();
+                    // hideGlobalStatus(); // loadConfigSettings will handle this based on body class
+                });
+            } else {
+                console.error("Refresh button not found");
+            }
+
+            loadConfigSettings(); 
+
+            fetch(STATUS_API_URL)
+                .then(response => response.ok ? response.json() : null)
+                .then(data => {
+                    const nodeInfoDiv = document.getElementById('local-node-info');
+                    if (nodeInfoDiv && data && data.local_node_info && data.local_node_info.node_id) {
+                        nodeInfoDiv.innerHTML =
+                            `<i class="fas fa-laptop"></i> Local node: <strong class="node-id">${sanitizeHTML(data.local_node_info.node_id)}</strong>`;
+                    } else if (nodeInfoDiv) {
+                        nodeInfoDiv.innerHTML = `<i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong>`;
+                    }
+                })
+                .catch(err => {
+                    console.error('Could not fetch status/local node info:', err);
+                    const nodeInfoDiv = document.getElementById('local-node-info');
+                    if (nodeInfoDiv) {
+                        nodeInfoDiv.innerHTML = `<i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong>`;
+                    }
+                    updateStatus('disconnected', 'Status Error');
+                });
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.className === 'dark-theme' ? 'light-theme' : 'dark-theme';
+            html.className = newTheme;
+            localStorage.setItem('meshtastic-theme', newTheme);
+            const themeIcon = document.getElementById('theme-icon');
+            if (themeIcon) {
+                themeIcon.className = newTheme === 'dark-theme' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('meshtastic-theme');
+            if (savedTheme) {
+                document.documentElement.className = savedTheme;
+            }
+            const themeToggleButton = document.getElementById('theme-toggle');
+            if (themeToggleButton) {
+                themeToggleButton.addEventListener('click', toggleTheme);
+                const themeIcon = document.getElementById('theme-icon');
+                if (themeIcon) { 
+                    themeIcon.className = document.documentElement.className === 'dark-theme' ? 'fas fa-sun' : 'fas fa-moon';
+                }
+            } else {
+                console.error("Theme toggle button not found");
+            }
+
+            initializeSystemConfigPage(); 
+        });
+    </script>
+
+    <div id="md-update-modal">
+        <div class="md-modal-content">
+            <span class="md-modal-close" id="md-modal-close-btn">&times;</span>
+            <h3><i class="fas fa-arrow-circle-up"></i> Update Available</h3>
+            <p>A newer version of the Mesh Dashboard is available!</p>
+            <p>You can download the latest version from:</p>
+            <p style="text-align: center; margin: 15px 0;">
+                <a href="https://meshdash.co.uk/" target="_blank">https://meshdash.co.uk/</a>
+            </p>
+            <div class="md-modal-note">
+                <i class="fas fa-info-circle"></i> Please check the documentation for update instructions.
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-container">
+        <div class="footer-left">
+            <div class="footer-item">
+                <i class="fas fa-cubes"></i>
+                <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+                <strong>Rusjp</strong>
+            </div>
+            <div class="footer-divider">|</div>
+            <div class="footer-item">
+                <span>Version:</span>
+                <strong id="md-installed-version">Loading...</strong>
+            </div>
+            <div id="md-update-container" style="display: none;">
+                <div class="footer-divider">|</div>
+                <div class="footer-item">
+                    <i class="fas fa-arrow-circle-up"></i>
+                    <span>Update Available:</span>
+                    <strong id="md-latest-version"></strong>
+                    <button id="md-update-btn">Info</button>
+                    <button class="debug-button" id="debug-button" onclick="toggleDebugPanel()">
+                         <i class="fas fa-bug"></i> Debug
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const LOCAL_CONFIG_API_URL_FOOTER = '/api/system/config/'; 
+        const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version';
+
+        const instVerSpan = document.getElementById('md-installed-version');
+        const updateContainer = document.getElementById('md-update-container');
+        const latestVersionSpan = document.getElementById('md-latest-version');
+        const updateModal = document.getElementById('md-update-modal');
+        const updateBtn = document.getElementById('md-update-btn');
+        const modalCloseBtn = document.getElementById('md-modal-close-btn');
+
+        async function fetchLocalConfigFooter() { 
+            try {
+                const response = await fetch(LOCAL_CONFIG_API_URL_FOOTER);
+                if (!response.ok) {
+                    console.error(`Error fetching local config (footer): ${response.status} ${response.statusText}`);
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to fetch or parse local configuration (footer):', error);
+                return null;
+            }
+        }
+
+        async function fetchExternalVersion() {
+            try {
+                const response = await fetch(EXTERNAL_VERSION_API_URL);
+                if (!response.ok) {
+                    console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching or parsing external version:', error);
+                return null;
+            }
+        }
+
+        function compareVersions(v1, v2) {
+            if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+                console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+                return 0;
+            }
+            try {
+                const p1 = v1.substring(1).split('.').map(Number);
+                const p2 = v2.substring(1).split('.').map(Number);
+                if (p1.some(isNaN) || p2.some(isNaN)) {
+                    console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                    return 0;
+                }
+                const len = Math.max(p1.length, p2.length);
+                for (let i = 0; i < len; i++) {
+                    const n1 = p1[i] || 0;
+                    const n2 = p2[i] || 0;
+                    if (n1 < n2) return -1;
+                    if (n1 > n2) return 1;
+                }
+                return 0;
+            } catch (e) {
+                console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+                return 0;
+            }
+        }
+
+        async function initFooter() {
+            if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+                console.error('Footer initialization failed: missing essential display elements.');
+                if (instVerSpan) instVerSpan.textContent = 'Error!';
+                return;
+            }
+
+            let installedVersion = null;
+            const localConfig = await fetchLocalConfigFooter();
+            if (localConfig && localConfig.INSTALLED_VERSION) {
+                installedVersion = localConfig.INSTALLED_VERSION.trim();
+                instVerSpan.textContent = sanitizeHTML(installedVersion);
+            } else {
+                console.error("Could not retrieve installed version for footer.");
+                instVerSpan.textContent = 'Error!';
+                return; 
+            }
+
+            const externalData = await fetchExternalVersion();
+            if (externalData && externalData.version && typeof externalData.version === 'string') {
+                const latestAvailableVersion = externalData.version.trim();
+                const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+
+                if (comparisonResult < 0) { 
+                    latestVersionSpan.textContent = sanitizeHTML(latestAvailableVersion);
+                    updateContainer.style.display = 'flex';
+                    if (updateBtn) updateBtn.style.display = 'inline-block';
+                } else {
+                    updateContainer.style.display = 'none';
+                }
+            } else {
+                updateContainer.style.display = 'none';
+            }
+
+            if (updateBtn && updateModal && modalCloseBtn) {
+                updateBtn.addEventListener('click', () => { updateModal.style.display = 'block'; });
+                modalCloseBtn.addEventListener('click', () => { updateModal.style.display = 'none'; });
+                window.addEventListener('click', (e) => { if (e.target === updateModal) updateModal.style.display = 'none'; });
+                document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && updateModal.style.display === 'block') updateModal.style.display = 'none'; });
+            } else {
+                if(updateBtn) updateBtn.style.display = 'none';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', initFooter);
+    })();
+
+    function toggleDebugPanel() { // Dummy function if not defined elsewhere
+        console.log("Debug panel toggled (dummy function).");
+    }
+    </script>
+
+</body>
+</html>
+

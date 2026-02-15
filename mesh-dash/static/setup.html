@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeshDash Setup</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card {
+            background-color: #1F2937; /* Tailwind gray-800 */
+            color: #D1D5DB; /* Tailwind gray-300 */
+        }
+        .card-header {
+            border-bottom: 1px solid #374151; /* Tailwind gray-700 */
+        }
+        .input-field, .select-field {
+            background-color: #374151; /* Tailwind gray-700 */
+            border: 1px solid #4B5563; /* Tailwind gray-600 */
+            color: #F3F4F6; /* Tailwind gray-100 */
+        }
+        .input-field::placeholder {
+            color: #6B7280; /* Tailwind gray-500 */
+        }
+        .input-field:focus, .select-field:focus {
+            outline: none;
+            border-color: #3B82F6; /* Tailwind blue-500 */
+            box-shadow: 0 0 0 2px #2563EB; /* Tailwind blue-600 */
+        }
+        .btn-success {
+            background-color: #059669; /* Tailwind green-600 */
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #047857; /* Tailwind green-700 */
+        }
+        .setting-item {
+            padding-bottom: 1rem;
+        }
+        .form-label {
+            color: #9CA3AF; /* Tailwind gray-400 */
+        }
+        select:disabled, input:disabled {
+            background-color: #4B5563; /* Tailwind gray-600 */
+            color: #9CA3AF; /* Tailwind gray-400 */
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .info-box {
+            background-color: #273344; /* Slightly lighter than card for emphasis */
+            border-left: 4px solid #3B82F6; /* Blue accent border */
+            padding: 0.75rem 1rem;
+            margin-top: 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem; /* text-sm */
+            color: #E5E7EB; /* Tailwind gray-200 */
+        }
+        .info-box ul {
+            list-style-type: disc;
+            padding-left: 1.25rem; /* pl-5 */
+        }
+        .summary-card {
+            background-color: #111827; /* Tailwind gray-900, darker for summary */
+        }
+        .summary-card .card-header {
+             border-bottom: 1px solid #4B5563; /* Tailwind gray-600 */
+        }
+        .summary-content {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .summary-content strong {
+            color: #60A5FA; /* Tailwind blue-400 for emphasis */
+        }
+        .summary-content .will-share {
+            color: #34D399; /* Tailwind green-400 */
+        }
+        .summary-content .will-not-share {
+            color: #F87171; /* Tailwind red-400 */
+        }
+        .summary-content ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .summary-content ul li {
+            padding-left: 1.5em;
+            position: relative;
+        }
+        .summary-content ul li::before {
+            content: '';
+            position: absolute;
+            left: 0.5em;
+            top: 0.5em;
+            width: 0.5em;
+            height: 0.5em;
+            border-radius: 50%;
+        }
+        .summary-content ul li.shared::before { background-color: #34D399; } /* Green dot */
+        .summary-content ul li.not-shared::before { background-color: #F87171; } /* Red dot */
+        .summary-content ul li.neutral::before { background-color: #60A5FA; } /* Blue dot for general points */
+
+        #locationOffsetInputContainer {
+            background-color: #273344;
+            border: 1px solid #374151;
+            padding: 1rem;
+            margin-top: 1rem;
+            border-radius: 0.375rem; /* rounded-md */
+        }
+        #locationOffsetInputContainer label {
+            color: #9CA3AF; /* Tailwind gray-400 */
+        }
+        #locationOffsetInputContainer input[type="number"] {
+            width: calc(100% - 1rem);
+        }
+
+        /* Loader Styles */
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(17, 24, 39, 0.9); /* Tailwind gray-900 with opacity */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Ensure it's on top */
+            color: #E5E7EB; /* Tailwind gray-200 */
+        }
+        .loader-spinner {
+            border: 6px solid #374151; /* Tailwind gray-700 */
+            border-top: 6px solid #3B82F6; /* Tailwind blue-500 */
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loader-text {
+            font-size: 1.125rem; /* text-lg */
+            font-weight: 600; /* font-semibold */
+        }
+        .loader-subtext {
+            font-size: 0.875rem; /* text-sm */
+            color: #9CA3AF; /* Tailwind gray-400 */
+            margin-top: 0.5rem;
+            text-align: center;
+            max-width: 80%;
+        }
+        /* Utility to hide elements */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+    <div id="loaderOverlay" class="loader-overlay hidden">
+        <div class="loader-spinner"></div>
+        <p class="loader-text">Applying Settings...</p>
+        <p id="loaderSubtext" class="loader-subtext">Admin account, Location, and Privacy settings are being configured. The server will restart shortly.</p>
+    </div>
+
+    <div class="dashboard min-h-screen flex flex-col">
+        <header class="header bg-gray-800 shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
+            <div class="header-left">
+                <h1 class="text-2xl font-semibold text-white">
+                    <i class="fas fa-cogs text-blue-400"></i> MeshDash <span class="text-blue-400 font-bold">Setup</span>
+                </h1>
+            </div>
+        </header>
+
+        <main class="flex-grow p-4 md:p-6 lg:p-8 space-y-6">
+            <div class="card shadow-lg rounded-lg overflow-hidden">
+                <div class="card-header p-5">
+                    <h2 class="text-xl font-semibold text-white"><i class="fas fa-door-open text-green-400 mr-2"></i>Welcome to MeshDash!</h2>
+                </div>
+                <div class="card-content p-5">
+                    <p class="text-gray-300">
+                        Thank you for choosing MeshDash. This initial setup will help you configure essential settings for the dashboard.
+                        You can always change these settings later.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card shadow-lg rounded-lg overflow-hidden">
+                <div class="card-header p-5">
+                    <h2 class="text-xl font-semibold text-white"><i class="fas fa-user-shield text-yellow-400 mr-2"></i>Admin Account Creation (Required)</h2>
+                </div>
+                <div class="card-content p-5 space-y-4">
+                    <p class="text-gray-400 text-sm">
+                        Create an administrator account to manage and secure your MeshDash panel. This is required to access the dashboard.
+                    </p>
+                    <div>
+                        <label for="adminUsername" class="block text-sm font-medium form-label mb-1">Admin Username</label>
+                        <input type="text" id="adminUsername" name="adminUsername" class="w-full p-2.5 rounded-md input-field" placeholder="e.g., meshadmin" required>
+                    </div>
+                    <div>
+                        <label for="adminPassword" class="block text-sm font-medium form-label mb-1">Admin Password</label>
+                        <input type="password" id="adminPassword" name="adminPassword" class="w-full p-2.5 rounded-md input-field" placeholder="Choose a strong password" required>
+                    </div>
+                    <div>
+                        <label for="adminPasswordConfirm" class="block text-sm font-medium form-label mb-1">Confirm Admin Password</label>
+                        <input type="password" id="adminPasswordConfirm" name="adminPasswordConfirm" class="w-full p-2.5 rounded-md input-field" placeholder="Re-enter your password" required>
+                         <p id="passwordError" class="text-red-500 text-xs mt-1 hidden">Passwords do not match.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-lg rounded-lg overflow-hidden">
+                <div class="card-header p-5">
+                    <h2 class="text-xl font-semibold text-white"><i class="fas fa-shield-alt text-purple-400 mr-2"></i>Privacy & Community Settings</h2>
+                </div>
+                <div class="card-content p-5 space-y-6">
+                    <p class="text-gray-400 text-sm">
+                        Configure how your node interacts with the wider MeshDash community and what information is shared.
+                    </p>
+
+                    <div class="setting-item">
+                        <label for="operatingMode" class="block text-sm font-medium form-label mb-1">Operating Mode</label>
+                        <select id="operatingMode" name="operatingMode" class="w-full p-2.5 rounded-md select-field">
+                            <option value="offline" selected>Offline Mode (Isolated)</option>
+                            <option value="telemetry">Device Count & Telemetry Only</option>
+                            <option value="online_offset">Community Access with Location Offset</option>
+                            <option value="online">Online Mode (Full Community Participation)</option>
+                        </select>
+                        <div id="operatingModeInfo" class="info-box mt-2">
+                            </div>
+                    </div>
+
+                    <div id="locationOffsetInputContainer" class="setting-item" style="display:none;">
+                        <label for="locationOffsetMeters" class="block text-sm font-medium form-label mb-1">Location Offset (meters)</label>
+                        <input type="number" id="locationOffsetMeters" name="locationOffsetMeters" class="w-full p-2.5 rounded-md input-field" placeholder="e.g., 50" min="0">
+                        <p class="text-xs text-gray-500 mt-1 mb-2">Enter the desired offset in meters. This value will be used to adjust your location data sent to the community API when you complete setup.</p>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="joinCommunity" class="block text-sm font-medium form-label mb-1">Join the MeshDash Community</label>
+                        <select id="joinCommunity" name="joinCommunity" class="w-full p-2.5 rounded-md select-field">
+                            <option value="no">No, not at this time</option>
+                            <option value="yes">Yes, I want to join</option>
+                        </select>
+                         <p class="text-xs text-gray-500 mt-1">This is <strong>automatically enabled and required</strong> in 'Online' modes. Disabled in other modes.</p>
+                    </div>
+                    <div id="communityMessage" class="hidden p-4 bg-gray-700 rounded-md border border-blue-600 text-sm text-gray-300">
+                        <h4 class="font-semibold text-blue-400 mb-2"><i class="fas fa-info-circle mr-1"></i> Important Community Information (Online Modes)</h4>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>Your <strong>Node Location</strong> (potentially offset) will be shared with the community to help map the network.</li>
+                            <li>The network uses a periodic heartbeat (approx. every 60 seconds) to confirm your node's active participation.</li>
+                            <li>Anonymous operational metrics will be shared to improve the network and its features.</li>
+                        </ul>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="shareLocation" class="block text-sm font-medium form-label mb-1">Share Your Node's Location</label>
+                        <select id="shareLocation" name="shareLocation" class="w-full p-2.5 rounded-md select-field">
+                            <option value="no">No, keep my location private</option>
+                            <option value="yes">Yes, share my location</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Allows your node's geographical location to be displayed. This is <strong>automatically enabled and required</strong> in 'Online' modes. Disabled in other modes.</p>
+                    </div>
+
+                    <div class="setting-item">
+                        <label for="shareDetectedNodes" class="block text-sm font-medium form-label mb-1">Share Anonymized Location of Detected Nodes</label>
+                        <select id="shareDetectedNodes" name="shareDetectedNodes" class="w-full p-2.5 rounded-md select-field">
+                            <option value="no" selected>No, do not share this data</option>
+                            <option value="yes">Yes, contribute to network mapping</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Help map the MeshDash network by sharing anonymized signal and location data about other nodes your device detects. This is optional in 'Online Mode (Full Participation)', <strong>enabled & locked</strong> in 'Community Access with Location Offset', and disabled in other modes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card summary-card shadow-lg rounded-lg overflow-hidden">
+                <div class="card-header p-5">
+                     <h2 class="text-xl font-semibold text-white"><i class="fas fa-clipboard-list text-blue-400 mr-2"></i>Configuration Summary</h2>
+                </div>
+                <div id="configurationSummaryReport" class="card-content p-5 summary-content">
+                    <p>Select your operating mode to see a summary of your sharing settings.</p>
+                </div>
+            </div>
+
+            <div class="card shadow-lg rounded-lg overflow-hidden">
+                <div class="card-content p-6 text-center">
+                    <button id="completeSetupBtn" class="btn-success font-bold py-3 px-8 rounded-lg shadow-xl transition duration-150 ease-in-out transform hover:scale-105 text-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                        <i class="fas fa-check-circle mr-2"></i>Complete Setup &amp; Launch MeshDash
+                    </button>
+                    <p class="text-xs text-gray-500 mt-4">You can adjust these settings later from the main dashboard configuration page.</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer-container bg-gray-800 border-t border-gray-700 p-4 text-center text-sm text-gray-500">
+            MeshDash Setup Utility | &copy; <span id="currentYear"></span> Rusjp MeshDash Project
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Element Selectors ---
+            const joinCommunitySelect = document.getElementById('joinCommunity');
+            const communityMessageDiv = document.getElementById('communityMessage');
+            const operatingModeSelect = document.getElementById('operatingMode');
+            const operatingModeInfoDiv = document.getElementById('operatingModeInfo');
+            const shareLocationSelect = document.getElementById('shareLocation');
+            const shareDetectedNodesSelect = document.getElementById('shareDetectedNodes');
+            const configurationSummaryReportDiv = document.getElementById('configurationSummaryReport');
+
+            const adminUsernameInput = document.getElementById('adminUsername');
+            const adminPasswordInput = document.getElementById('adminPassword');
+            const adminPasswordConfirmInput = document.getElementById('adminPasswordConfirm');
+            const passwordErrorP = document.getElementById('passwordError');
+            const completeSetupBtn = document.getElementById('completeSetupBtn');
+
+            const locationOffsetInputContainer = document.getElementById('locationOffsetInputContainer');
+            const locationOffsetMetersInput = document.getElementById('locationOffsetMeters');
+
+            const loaderOverlay = document.getElementById('loaderOverlay');
+            const loaderSubtext = document.getElementById('loaderSubtext');
+
+            // --- Mode Information Content ---
+            const modeInfoContents = {
+                offline: `
+                    <p><i class="fas fa-ban mr-1 text-red-400"></i><strong>Offline Mode:</strong></p>
+                    <ul class="mt-1">
+                        <li>Your MeshDash installation will operate in <strong>complete isolation</strong>.</li>
+                        <li><strong>No data</strong> will be shared with the MeshDash community or external services.</li>
+                        <li>All community features and external data sharing will be <strong>disabled</strong>.</li>
+                    </ul>`,
+                telemetry: `
+                    <p><i class="fas fa-chart-bar mr-1 text-yellow-400"></i><strong>Device Count & Telemetry Only Mode:</strong></p>
+                    <ul class="mt-1">
+                        <li>MeshDash will share anonymous, non-location-specific data for network insights and development.</li>
+                        <li>This includes: anonymous device counts, general system telemetry (e.g., device model, firmware version, uptime).</li>
+                        <li><strong>No personal or specific node location data will be shared.</strong></li>
+                        <li>Community features (joining, location sharing) remain <strong>disabled</strong>.</li>
+                    </ul>`,
+                online_offset: `
+                    <p><i class="fas fa-map-marked-alt mr-1 text-blue-400"></i><strong>Community Access with Location Offset:</strong></p>
+                    <ul class="mt-1">
+                        <li>Enables participation in the MeshDash community with an <strong>added layer of privacy for your precise location</strong>.</li>
+                        <li>Your node's location will be shared with the community, but <strong>offset by an amount you specify</strong> below.</li>
+                        <li>Sharing of anonymized location of detected nodes is <strong>automatically enabled</strong>.</li>
+                        <li>Other shared data (heartbeats, anonymized metrics) is the same as Full Online Mode.</li>
+                    </ul>
+                    <p class="mt-2 text-sm text-yellow-300"><strong>Important:</strong> Please set your desired offset in meters in the section that appears below. This will be applied when you complete the setup.</p>`,
+                online: `
+                    <p><i class="fas fa-globe-americas mr-1 text-green-400"></i><strong>Online Mode (Full Community Participation):</strong></p>
+                    <ul class="mt-1">
+                        <li>Enables full participation in the MeshDash community.</li>
+                        <li>The following data <strong>will be shared</strong>:
+                            <ul>
+                                <li>Your Node's Location (for community maps).</li>
+                                <li>Community participation heartbeats.</li>
+                                <li>Anonymized operational metrics.</li>
+                            </ul>
+                        </li>
+                        <li>Sharing of anonymized location of detected nodes is <strong>optional</strong> (configurable below).</li>
+                    </ul>`
+            };
+
+            // --- Update Summary Report Function ---
+            function updateSummaryReport() {
+                const currentMode = operatingModeSelect.value;
+                let summaryHTML = '';
+                const offsetValueFromInput = locationOffsetMetersInput.value.trim() !== '' ? parseFloat(locationOffsetMetersInput.value).toFixed(1) + 'm' : '(not yet set)';
+
+                if (currentMode === 'offline') {
+                    summaryHTML = `
+                        <p>Your MeshDash will operate in <strong>complete isolation</strong>.</p>
+                        <ul>
+                            <li class="not-shared"><strong>No data</strong> (including location, telemetry, or community data) will be shared.</li>
+                            <li class="neutral">All community features are <strong>disabled</strong>.</li>
+                        </ul>`;
+                } else if (currentMode === 'telemetry') {
+                    summaryHTML = `
+                        <p>Your MeshDash will share <strong>anonymous, non-location-specific data</strong>:</p>
+                        <ul>
+                            <li class="shared">Anonymous device counts.</li>
+                            <li class="shared">General system telemetry.</li>
+                            <li class="not-shared"><strong>No personal or node location data</strong> will be shared.</li>
+                            <li class="neutral">Community features (joining, location sharing) are <strong>disabled</strong>.</li>
+                        </ul>`;
+                } else if (currentMode === 'online' || currentMode === 'online_offset') {
+                    const locationSharedText = currentMode === 'online_offset' ?
+                        `Your Node's Location (to be offset by <strong>${offsetValueFromInput}</strong>).`
+                        : "Your Node's Location (for community maps).";
+                    
+                    const sharesDetectedNodeLocations = (currentMode === 'online_offset') ? true : shareDetectedNodesSelect.value === 'yes';
+
+                    summaryHTML = `
+                        <p>You are <strong>joining the MeshDash community</strong>.</p>
+                        ${currentMode === 'online_offset' ? `<p>Location sharing will be <strong>offset by the value you enter (${offsetValueFromInput})</strong> upon completing setup.</p>` : ''}
+                        <p>Your MeshDash <strong>will share</strong>:</p>
+                        <ul>
+                            <li class="shared">${locationSharedText}</li>
+                            <li class="shared">Community participation heartbeats.</li>
+                            <li class="shared">Anonymized operational metrics.</li>
+                        </ul>
+                        <p class="mt-2">Sharing Anonymized Location of Detected Nodes:</p>
+                        <ul>
+                            ${sharesDetectedNodeLocations
+                                ? '<li class="shared">This data <strong>will be shared</strong> (either chosen or required by mode).</li>'
+                                : '<li class="not-shared">You have <strong>chosen NOT to share</strong> this data.</li>'
+                            }
+                        </ul>`;
+                }
+                configurationSummaryReportDiv.innerHTML = summaryHTML;
+            }
+
+            // --- Update Settings States (based on Operating Mode) ---
+            function updateSettingsStates() {
+                const currentMode = operatingModeSelect.value;
+                operatingModeInfoDiv.innerHTML = modeInfoContents[currentMode] || '<p>Select a mode to see details.</p>';
+                locationOffsetInputContainer.style.display = 'none'; 
+                joinCommunitySelect.disabled = false;
+                shareLocationSelect.disabled = false;
+                shareDetectedNodesSelect.disabled = false;
+
+                if (currentMode === 'offline' || currentMode === 'telemetry') {
+                    joinCommunitySelect.value = 'no';
+                    joinCommunitySelect.disabled = true;
+                    communityMessageDiv.classList.add('hidden');
+                    shareLocationSelect.value = 'no';
+                    shareLocationSelect.disabled = true;
+                    shareDetectedNodesSelect.value = 'no';
+                    shareDetectedNodesSelect.disabled = true;
+                } else if (currentMode === 'online' || currentMode === 'online_offset') {
+                    joinCommunitySelect.value = 'yes';
+                    joinCommunitySelect.disabled = true;
+                    communityMessageDiv.classList.remove('hidden');
+                    shareLocationSelect.value = 'yes';
+                    shareLocationSelect.disabled = true;
+
+                    if (currentMode === 'online_offset') {
+                        locationOffsetInputContainer.style.display = 'block';
+                        shareDetectedNodesSelect.value = 'yes'; 
+                        shareDetectedNodesSelect.disabled = true; 
+                    } else { // 'online' mode
+                        shareDetectedNodesSelect.disabled = false; 
+                    }
+                }
+                updateSummaryReport();
+            }
+
+            // --- Event Listeners ---
+            if (operatingModeSelect) operatingModeSelect.addEventListener('change', updateSettingsStates);
+            if (shareDetectedNodesSelect) shareDetectedNodesSelect.addEventListener('change', () => {
+                if (operatingModeSelect.value === 'online') updateSummaryReport();
+            });
+            if(locationOffsetMetersInput) locationOffsetMetersInput.addEventListener('input', () => {
+                if(operatingModeSelect.value === 'online_offset') updateSummaryReport();
+            });
+
+            // --- Password Validation ---
+            function validatePasswords() {
+                if (adminPasswordInput.value !== adminPasswordConfirmInput.value) {
+                    adminPasswordConfirmInput.classList.add('border-red-500');
+                    passwordErrorP.classList.remove('hidden');
+                    return false;
+                }
+                adminPasswordConfirmInput.classList.remove('border-red-500');
+                passwordErrorP.classList.add('hidden');
+                adminPasswordConfirmInput.setCustomValidity("");
+                return true;
+            }
+
+            if (adminPasswordInput && adminPasswordConfirmInput) {
+                [adminPasswordInput, adminPasswordConfirmInput].forEach(input => {
+                    input.addEventListener('input', () => {
+                        if (adminPasswordConfirmInput.value !== "") validatePasswords();
+                        else {
+                             adminPasswordConfirmInput.classList.remove('border-red-500');
+                             passwordErrorP.classList.add('hidden');
+                             adminPasswordConfirmInput.setCustomValidity("");
+                        }
+                    });
+                });
+            }
+
+            // --- Complete Setup Button Click Handler ---
+            if (completeSetupBtn) {
+                completeSetupBtn.addEventListener('click', async () => { // Main handler is async
+                    // Step 1: Basic Validations
+                    if (!adminUsernameInput.value.trim()) {
+                        showCustomAlert("Admin username is required.");
+                        adminUsernameInput.focus();
+                        return;
+                    }
+                    if (!adminPasswordInput.value) {
+                        showCustomAlert("Admin password is required.");
+                        adminPasswordInput.focus();
+                        return;
+                    }
+                    if (!validatePasswords()) {
+                        showCustomAlert("Admin passwords do not match. Please correct them.");
+                        adminPasswordConfirmInput.focus();
+                        return;
+                    }
+
+                    const currentOpMode = operatingModeSelect.value;
+                    let offsetValStr = '';
+                    let offsetValNum = 0;
+
+                    if (currentOpMode === 'online_offset') {
+                        offsetValStr = locationOffsetMetersInput.value.trim();
+                        offsetValNum = parseFloat(offsetValStr);
+                        if (offsetValStr === '' || isNaN(offsetValNum) || offsetValNum < 0) {
+                            showCustomAlert("For 'Community Access with Location Offset' mode, please enter a valid, non-negative offset value in meters.");
+                            locationOffsetMetersInput.focus();
+                            return;
+                        }
+                    }
+
+                    // Step 2: Disable button
+                    completeSetupBtn.disabled = true;
+                    completeSetupBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+                    // Step 3: Show loader
+                    if (loaderOverlay) loaderOverlay.classList.remove('hidden');
+                    if (loaderSubtext) {
+                        loaderSubtext.textContent = `Applying Admin account, Location, and Privacy settings... Please wait.`;
+                    }
+
+                    // Step 4: Prepare settingsToSave object
+                    let sendLocalNodeLocation = "false";
+                    let sendOtherNodesLocation = "false";
+                    let communityApiActive = "false";
+                    let finalLocationOffsetEnabled = "false";
+                    let finalLocationOffsetMeters = "0.0";
+
+                    if (currentOpMode === 'telemetry') {
+                        communityApiActive = "true";
+                    } else if (currentOpMode === 'online_offset') {
+                        sendLocalNodeLocation = "true";
+                        sendOtherNodesLocation = "true"; // Locked
+                        communityApiActive = "true";
+                        finalLocationOffsetEnabled = "true";
+                        finalLocationOffsetMeters = offsetValNum.toFixed(1);
+                    } else if (currentOpMode === 'online') {
+                        sendLocalNodeLocation = "true";
+                        sendOtherNodesLocation = shareDetectedNodesSelect.value === 'yes' ? "true" : "false";
+                        communityApiActive = "true";
+                    }
+                    // For 'offline' mode, all relevant flags remain "false"
+
+                    const settingsToSave = {
+                        adminUser: {
+                            username: adminUsernameInput.value.trim(),
+                            password: adminPasswordInput.value
+                        },
+                        configValues: {
+                            SEND_LOCAL_NODE_LOCATION: sendLocalNodeLocation,
+                            SEND_OTHER_NODES_LOCATION: sendOtherNodesLocation,
+                            COMMUNITY_API: communityApiActive,
+                            LOCATION_OFFSET_ENABLED: finalLocationOffsetEnabled,
+                            LOCATION_OFFSET_METERS: finalLocationOffsetMeters
+                        },
+                        rawSelections: {
+                            operatingMode: currentOpMode,
+                            joinCommunity: joinCommunitySelect.value,
+                            shareLocation: shareLocationSelect.value,
+                            shareDetectedNodes: shareDetectedNodesSelect.value,
+                            enteredOffsetMeters: (currentOpMode === 'online_offset') ? offsetValStr : "N/A"
+                        }
+                    };
+                    console.log('Settings to be sent to server:', JSON.stringify(settingsToSave, null, 2));
+
+                    // Step 5: Perform fetch operation
+                    try {
+                        const response = await fetch('/api/system/config/initial-setup', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(settingsToSave),
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            console.log('Server response:', result);
+                            if (loaderSubtext) {
+                                loaderSubtext.textContent = 'Configuration saved successfully! Server is restarting. Redirecting in 5 seconds...';
+                            }
+                            // Start 5-second timer for redirect AFTER successful save
+                            setTimeout(() => {
+                                window.location.href = '/'; // Redirect to main page
+                            }, 5000);
+                        } else {
+                            // Handle server error response
+                            let errorDetail = 'Unknown server error';
+                            try {
+                                const errorData = await response.json();
+                                errorDetail = errorData.detail || JSON.stringify(errorData);
+                            } catch (e) { errorDetail = await response.text(); }
+                            console.error('Failed to save configuration:', response.status, errorDetail);
+                            showCustomAlert(`Failed to save configuration: ${response.status} - ${errorDetail}. Please try again or check server logs.`, 'error');
+                            if (loaderOverlay) loaderOverlay.classList.add('hidden'); // Hide loader on error
+                            completeSetupBtn.disabled = false; // Re-enable button
+                            completeSetupBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                    } catch (error) {
+                        // Handle network/fetch error
+                        console.error('Error sending configuration to server:', error);
+                        showCustomAlert('An error occurred while trying to save the configuration. Please check your network connection and try again.', 'error');
+                        if (loaderOverlay) loaderOverlay.classList.add('hidden'); // Hide loader on error
+                        completeSetupBtn.disabled = false; // Re-enable button
+                        completeSetupBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+                });
+            }
+            
+            // --- Custom Alert Function ---
+            function showCustomAlert(message, type = 'info') {
+                const existingAlert = document.getElementById('customAlertModal');
+                if (existingAlert) existingAlert.remove();
+
+                const alertModal = document.createElement('div');
+                alertModal.id = 'customAlertModal';
+                alertModal.className = 'fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[1001] p-4';
+                
+                const alertBox = document.createElement('div');
+                alertBox.className = 'bg-gray-800 p-6 rounded-lg shadow-xl max-w-sm w-full text-center border-l-4';
+                let borderColorClass = type === 'success' ? 'border-green-500' : type === 'error' ? 'border-red-500' : 'border-blue-500';
+                alertBox.classList.add(borderColorClass);
+
+                const alertMessage = document.createElement('p');
+                alertMessage.className = 'text-gray-200 mb-4';
+                alertMessage.textContent = message;
+
+                const closeButton = document.createElement('button');
+                closeButton.className = 'bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md transition duration-150';
+                closeButton.textContent = 'OK';
+                closeButton.onclick = () => alertModal.remove();
+
+                alertBox.appendChild(alertMessage);
+                alertBox.appendChild(closeButton);
+                alertModal.appendChild(alertBox);
+                document.body.appendChild(alertModal);
+                closeButton.focus();
+            }
+
+            // --- Initial Setup ---
+            updateSettingsStates(); // Initialize states on page load
+            const yearSpan = document.getElementById('currentYear');
+            if (yearSpan) yearSpan.textContent = new Date().getFullYear();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en" class="light-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic Auto-Reply Rules</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/static/top_nav.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('nav-placeholder').innerHTML = data;
+                const currentPath = window.location.pathname;
+                const navLinks = document.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    const linkPath = link.getAttribute('href');
+                    if (currentPath === linkPath ||
+                        (linkPath !== '/' && currentPath.startsWith(linkPath) && (currentPath.charAt(linkPath.length) === '/' || currentPath.length === linkPath.length)) ||
+                        (currentPath === '/' && linkPath === '/')) {
+                         link.classList.add('active');
+                     }
+                });
+            })
+            .catch(error => console.error('Error loading navigation:', error));
+
+        initializeAutoReplyRules();
+
+        const savedTheme = localStorage.getItem('meshtastic-theme');
+        if (savedTheme) {
+            document.documentElement.className = savedTheme;
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.className = 'dark-theme';
+        }
+
+        const themeToggleButton = document.getElementById('theme-toggle');
+        if (themeToggleButton) {
+            themeToggleButton.addEventListener('click', toggleTheme);
+            const themeIcon = document.getElementById('theme-icon');
+            if (themeIcon) {
+                themeIcon.className = document.documentElement.className === 'dark-theme' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        } else {
+            console.error("Theme toggle button not found");
+        }
+    });
+
+    function toggleTheme() {
+        const html = document.documentElement;
+        const newTheme = html.className === 'dark-theme' ? 'light-theme' : 'dark-theme';
+        html.className = newTheme;
+        localStorage.setItem('meshtastic-theme', newTheme);
+
+        const themeIcon = document.getElementById('theme-icon');
+        if (themeIcon) {
+            themeIcon.className = newTheme === 'dark-theme' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="/static/styles.css">
+<style>
+     #existing-rules-list {
+         display: grid;
+         grid-template-columns: 1fr;
+         gap: 1rem;
+     }
+
+     @media (min-width: 640px) {
+          #existing-rules-list {
+             grid-template-columns: repeat(2, 1fr);
+         }
+     }
+
+     .rule-item {
+         background-color: var(--card-background);
+         border: 1px solid var(--border-color);
+         border-radius: 0.5rem;
+         padding: 1rem;
+         transition: box-shadow 0.2s, transform 0.1s, background-color 0.3s;
+         display: flex;
+         flex-direction: column;
+         justify-content: space-between;
+         min-height: 150px;
+     }
+
+     .rule-item:hover {
+         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+     }
+
+     .btn.danger {
+         background-color: var(--error-color);
+         color: white;
+     }
+
+     .btn.danger:hover {
+         background-color: #ff6666;
+         filter: brightness(1.1);
+         transform: translateY(-1px);
+     }
+
+     .btn.icon-only {
+         padding: 0.5rem;
+         margin-left: 0.5rem;
+     }
+
+     .btn.icon-only i {
+         margin-right: 0;
+     }
+
+     .btn:disabled {
+         opacity: 0.7;
+         cursor: not-allowed;
+     }
+
+     .helper-text {
+         font-size: 0.75rem;
+         color: var(--text-secondary);
+         margin-top: 0.25rem;
+     }
+
+     .error-message {
+         color: var(--error-color);
+         background-color: rgba(239, 68, 68, 0.1);
+         border: 1px solid rgba(239, 68, 68, 0.3);
+         border-radius: 0.375rem;
+         padding: 0.5rem 0.75rem;
+         margin-bottom: 1rem;
+         font-size: 0.875rem;
+         display: flex;
+         align-items: center;
+     }
+
+     .success-message {
+         color: var(--success-color);
+         background-color: rgba(16, 185, 129, 0.1);
+         border: 1px solid rgba(16, 185, 129, 0.3);
+         border-radius: 0.375rem;
+         padding: 0.5rem 0.75rem;
+         margin-bottom: 1rem;
+         font-size: 0.875rem;
+         display: flex;
+         align-items: center;
+     }
+
+     .no-data-placeholder {
+         text-align: center;
+         padding: 2rem;
+         color: var(--text-secondary);
+         font-style: italic;
+         grid-column: 1 / -1;
+     }
+
+     .button-row {
+         display: flex;
+         gap: 0.5rem;
+         margin-top: 1rem;
+         justify-content: flex-end;
+     }
+
+     #rule-setup-modal .modal-content {
+         max-width: 800px;
+     }
+
+     .rule-header {
+         display: flex;
+         justify-content: space-between;
+         align-items: flex-start;
+         margin-bottom: 0.75rem;
+     }
+
+     .rule-title {
+         font-weight: 600;
+         color: var(--text-primary);
+         display: flex;
+         align-items: center;
+         word-break: break-word;
+         margin-right: 0.5rem;
+     }
+
+     .rule-title code {
+         background-color: var(--input-background);
+         padding: 0.25rem 0.5rem;
+         border-radius: 0.25rem;
+         font-family: monospace;
+         margin-left: 0.5rem;
+         font-size: 0.9em;
+         white-space: nowrap;
+         overflow: hidden;
+         text-overflow: ellipsis;
+         max-width: 150px;
+         color: var(--text-primary);
+         transition: background-color 0.3s;
+         display: inline-block;
+     }
+
+     .rule-status {
+         display: flex;
+         align-items: center;
+         flex-shrink: 0;
+     }
+
+     .rule-status-toggle {
+         font-size: 1.25rem;
+         cursor: pointer;
+         display: flex;
+         align-items: center;
+     }
+
+     .rule-status-toggle span {
+         font-size: 0.875rem;
+         margin-left: 0.25rem;
+     }
+
+     .rule-status-toggle.enabled {
+         color: var(--success-color);
+     }
+
+     .rule-status-toggle.disabled {
+         color: var(--error-color);
+     }
+
+     .rule-content {
+         margin-bottom: 0.75rem;
+         color: var(--text-primary);
+         flex-grow: 1;
+     }
+
+     .rule-content p {
+         margin: 0.25rem 0;
+         display: flex;
+         align-items: flex-start;
+         word-break: break-word;
+     }
+
+     .rule-content p i {
+         margin-right: 0.5rem;
+         margin-top: 0.25rem;
+         color: var(--text-secondary);
+         width: 1rem;
+         text-align: center;
+         flex-shrink: 0;
+     }
+
+     .rule-actions {
+         display: flex;
+         gap: 0.5rem;
+         margin-top: auto;
+         padding-top: 0.75rem;
+         justify-content: flex-end;
+     }
+
+     .rule-meta {
+         display: flex;
+         gap: 1rem;
+         flex-wrap: wrap;
+         margin-bottom: 0.5rem;
+         font-size: 0.875rem;
+     }
+
+     .rule-meta-item {
+         color: var(--text-secondary);
+         display: flex;
+         align-items: center;
+     }
+
+     .rule-meta-item i {
+         margin-right: 0.375rem;
+     }
+
+     /* ---- Styles for Placeholder Pills Container ---- */
+     .placeholder-container {
+         margin-top: 1rem; /* Increased top margin */
+         border: 1px solid var(--border-color);
+         border-radius: 0.375rem;
+         padding: 0.75rem; /* Increased padding */
+         background-color: var(--background-alt);
+         overflow-y: auto; /* Keep the scrollbar */
+         max-height: 180px; /* Keep the max height */
+     }
+
+     .placeholder-group {
+         margin-bottom: 0.75rem; /* Increased bottom margin for groups */
+     }
+     .placeholder-group:last-child {
+         margin-bottom: 0;
+     }
+
+     .placeholder-category {
+         font-size: 0.8rem; /* Slightly larger category title */
+         font-weight: 600;
+         color: var(--text-primary); /* Make category title more prominent */
+         margin-bottom: 0.5rem; /* Increased space below category title */
+         padding-bottom: 0.25rem;
+         border-bottom: 1px solid var(--border-color-light); /* Add a light separator */
+     }
+
+     .placeholder-pills {
+         display: flex;
+         flex-wrap: wrap;
+         gap: 0.5rem; /* Space between pills */
+     }
+
+     /* ---- Styles for Individual Placeholder Pills ---- */
+     .placeholder-pill {
+         display: inline-block; /* Allows margin/padding */
+         background-color: var(--button-secondary-background); /* Use secondary button style */
+         color: var(--button-secondary-text);
+         padding: 0.3rem 0.6rem; /* Adjust padding for button feel */
+         border-radius: 0.375rem; /* Standard button radius */
+         border: 1px solid var(--button-secondary-border); /* Match button border */
+         font-size: 0.8em; /* Adjust font size */
+         font-family: monospace; /* Monospaced font */
+         cursor: pointer;
+         transition: background-color 0.2s, transform 0.1s, border-color 0.2s;
+         white-space: nowrap; /* Prevent wrapping inside pill */
+         line-height: 1.2; /* Adjust line height */
+     }
+
+     .placeholder-pill:hover {
+         background-color: var(--button-secondary-hover-background);
+         border-color: var(--button-secondary-hover-border);
+         color: var(--button-secondary-hover-text);
+         transform: translateY(-1px); /* Subtle lift effect */
+         box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow */
+     }
+
+     /* Styles for placeholder table in the help modal */
+     .placeholder-table {
+         width: 100%;
+         border-collapse: collapse;
+         margin-top: 0.5rem;
+         font-size: 0.875rem;
+     }
+     .placeholder-table th,
+     .placeholder-table td {
+         border: 1px solid var(--border-color);
+         padding: 0.5rem 0.75rem;
+         text-align: left;
+         vertical-align: top;
+     }
+     .placeholder-table th {
+         background-color: var(--table-header-background);
+         font-weight: 600;
+         color: var(--text-primary);
+     }
+     .placeholder-table td {
+         background-color: var(--table-row-background);
+         color: var(--text-secondary);
+     }
+     .placeholder-table tr:nth-child(even) td {
+         background-color: var(--table-row-alt-background);
+     }
+     .placeholder-table code {
+         background-color: var(--input-background);
+         padding: 0.15rem 0.3rem;
+         border-radius: 0.25rem;
+         font-family: monospace;
+         font-size: 0.95em;
+         color: var(--text-primary);
+     }
+
+</style>
+    <script src="/static/nav_loader.js" defer></script>
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-reply-all"></i> Auto-Reply Rules <span class="highlight">Manager</span></h1>
+                <div class="status-container">
+                    <span id="status-indicator" class="status-indicator disconnected"></span> <span id="status-text">Initializing...</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="theme-toggle-container">
+                    <button id="theme-toggle" class="theme-toggle" title="Toggle dark/light mode">
+                        <i id="theme-icon" class="fas fa-moon"></i>
+                    </button>
+                </div>
+                <div id="local-node-info"><i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong></div>
+                <button class="btn primary" id="add-rule-btn" style="margin-left: 1rem;">
+                    <i class="fas fa-plus"></i> Add New Rule
+                </button>
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-list-check"></i> Existing Rules</h2>
+                    <button class="btn secondary" id="refresh-rules-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-content">
+                    <div id="existing-rules-list">
+                        <div class="loading-placeholder">
+                            <i class="fas fa-circle-notch fa-spin" style="margin-right: 0.5rem;"></i> Loading rules...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-info-circle"></i> About Auto-Reply Rules</h2>
+                </div>
+                <div class="card-content">
+                    <div class="instructions">
+                        <h3>How Auto-Reply Rules Work</h3>
+                        <p>Auto-reply rules let your Meshtastic node automatically respond to specific messages from other nodes without requiring your intervention.</p>
+
+                        <h4>Creating Effective Rules</h4>
+                        <p>When creating a rule, consider these factors:</p>
+                        <ul>
+                            <li><strong>Trigger Type:</strong> Choose between containing text, exact match, or regular expressions.</li>
+                            <li><strong>Response Text:</strong> Use dynamic placeholders like <code>{name}</code> or <code>{battery_level}</code> to include real-time information.</li>
+                            <li><strong>Cooldown Period:</strong> Prevent spam by setting a cooldown period between responses to the same node.</li>
+                        </ul>
+
+                        <h4>Common Use Cases</h4>
+                        <ul>
+                            <li><strong>Status Check:</strong> Create a rule with "status?" as the trigger to return battery level and signal information.</li>
+                            <li><strong>Node Information:</strong> Set up a rule for "who?" to return your node's details.</li>
+                            <li><strong>Location Sharing:</strong> Configure a rule with "where?" to automatically send your GPS coordinates.</li>
+                            <li><strong>Automated Help:</strong> Create a "help" trigger that lists available commands on your node.</li>
+                        </ul>
+
+                        <h4>Tips for Advanced Rules</h4>
+                        <p>For more precise matching, use regular expressions:</p>
+                        <ul>
+                            <li>Use <code>^ping$</code> to match only the exact word "ping" (no partial matches)</li>
+                            <li>Use <code>temp(erature)?</code> to match both "temp" and "temperature"</li>
+                            <li>Use <code>status|info</code> to trigger on either "status" or "info"</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="rule-setup-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="rule-modal-title"><i class="fas fa-cog"></i> Setup Rule</h2>
+                    <button class="close-btn" onclick="hideRuleModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="rule-form">
+                        <input type="hidden" id="rule-id" name="ruleId">
+
+                        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="grid-column">
+                                <div class="form-group">
+                                    <label for="rule-trigger-phrase">Trigger Phrase/Pattern:</label>
+                                    <input type="text" id="rule-trigger-phrase" name="triggerPhrase" class="form-control" placeholder="e.g., status?, weather, ^ping$" required>
+                                    <div class="helper-text">Text or pattern that will trigger this auto-reply</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="rule-match-type">Match Type:</label>
+                                    <select id="rule-match-type" name="matchType" class="form-control" required>
+                                        <option value="contains">Contains (Case-Insensitive)</option>
+                                        <option value="exact">Exact Match (Case-Insensitive)</option>
+                                        <option value="regex">Regular Expression</option>
+                                    </select>
+                                    <div class="helper-text">How to interpret the trigger phrase</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="rule-cooldown">Cooldown (seconds):</label>
+                                    <input type="number" id="rule-cooldown" name="cooldownSeconds" class="form-control" min="0" value="60" required>
+                                    <div class="helper-text">Time before this rule can trigger again for the same sender</div>
+                                </div>
+
+                                <div class="form-group">
+                                    <div style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="rule-enabled" name="isEnabled" style="margin-right: 0.5rem;" checked>
+                                        <label for="rule-enabled" style="margin-bottom: 0;">Enabled</label>
+                                    </div>
+                                    <div class="helper-text">When enabled, this rule will automatically respond to matching messages</div>
+                                </div>
+                            </div>
+
+                            <div class="grid-column">
+                                <div class="form-group">
+                                    <label for="rule-response-message">
+                                        Response Message:
+                                        <button type="button" class="btn secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem;" onclick="showPlaceholdersHelp()">
+                                            <i class="fas fa-question-circle"></i> Placeholders Help
+                                        </button>
+                                    </label>
+                                    <textarea id="rule-response-message" name="responseMessage" class="form-control" rows="4" style="height: 100px;" placeholder="You can use placeholders like: Hello {name}! Your location is {location}." required></textarea>
+                                    <div class="helper-text">The message to send in response. Click placeholders below to insert.</div>
+
+                                    <div class="placeholder-container" style="max-height: 180px;">
+                                        <div class="placeholder-group">
+                                            <div class="placeholder-category">Node Identity</div>
+                                            <div class="placeholder-pills">
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('name')" title="Best available name for the node (e.g., Bob's Node)">name</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('short_name')" title="Short name of the node (e.g., Bob)">short_name</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('long_name')" title="Long name of the node (e.g., Bob's Meshtastic Device)">long_name</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('node_id')" title="Node ID (e.g., !93f84d8f)">node_id</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="placeholder-group">
+                                            <div class="placeholder-category">Location</div>
+                                            <div class="placeholder-pills">
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('location')" title="Formatted latitude, longitude (e.g., 37.123, -122.654)">location</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('latitude')" title="Latitude (e.g., 37.123456)">latitude</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('longitude')" title="Longitude (e.g., -122.654321)">longitude</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('altitude')" title="Altitude in meters (e.g., 124)">altitude</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('position_time')" title="Unix timestamp when position was last updated">position_time</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="placeholder-group">
+                                            <div class="placeholder-category">Telemetry</div>
+                                            <div class="placeholder-pills">
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('battery_level')" title="Battery percentage (e.g., 87)">battery_level</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('voltage')" title="Battery voltage (e.g., 3.82)">voltage</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('channel_utilization')" title="Channel usage percentage (e.g., 12.5)">channel_utilization</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('air_util_tx')" title="Air utilization for TX (e.g., 4.2)">air_util_tx</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('telemetry_time')" title="Unix timestamp when telemetry was last updated">telemetry_time</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="placeholder-group">
+                                            <div class="placeholder-category">Signal</div>
+                                            <div class="placeholder-pills">
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('snr')" title="Signal-to-noise ratio (e.g., 8.5)">snr</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('rssi')" title="Signal strength RSSI (e.g., -92)">rssi</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="placeholder-group">
+                                            <div class="placeholder-category">Device</div>
+                                            <div class="placeholder-pills">
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('hw_model')" title="Hardware model (e.g., TBEAM)">hw_model</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('firmware_version')" title="Firmware version (e.g., 2.2.19)">firmware_version</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('role')" title="Node role (e.g., ROUTER)">role</span>
+                                                <span class="placeholder-pill" onclick="insertPlaceholder('last_heard')" title="Unix timestamp when node was last heard">last_heard</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="rule-status" style="margin-top: 1rem; display: none;"></div>
+
+                        <div class="button-row" style="margin-top: 1.5rem;">
+                            <button type="button" class="btn secondary" onclick="hideRuleModal()">Cancel</button>
+                            <button type="submit" id="save-rule-btn" class="btn primary">Save Rule</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="placeholders-help-modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-tags"></i> Available Placeholders</h2>
+                    <button class="close-btn" onclick="hidePlaceholdersHelp()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>You can include these placeholders in your auto-reply message. They will be replaced with actual values from the node that triggered the rule.</p>
+
+                    <div style="overflow-y: auto; max-height: 400px;">
+                        <h3 style="margin-top: 1rem; font-size: 1.1rem;">Node Identity</h3>
+                        <table class="placeholder-table">
+                            <thead>
+                                <tr>
+                                    <th>Placeholder</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>{name}</code></td>
+                                    <td>Best available name for the node</td>
+                                    <td>Bob's Node</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{short_name}</code></td>
+                                    <td>Short name of the node</td>
+                                    <td>Bob</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{long_name}</code></td>
+                                    <td>Long name of the node</td>
+                                    <td>Bob's Meshtastic Device</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{node_id}</code></td>
+                                    <td>Node ID</td>
+                                    <td>!93f84d8f</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3 style="margin-top: 1rem; font-size: 1.1rem;">Location</h3>
+                        <table class="placeholder-table">
+                            <thead>
+                                <tr>
+                                    <th>Placeholder</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>{location}</code></td>
+                                    <td>Formatted latitude, longitude</td>
+                                    <td>37.123456, -122.654321</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{latitude}</code></td>
+                                    <td>Latitude</td>
+                                    <td>37.123456</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{longitude}</code></td>
+                                    <td>Longitude</td>
+                                    <td>-122.654321</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{altitude}</code></td>
+                                    <td>Altitude in meters</td>
+                                    <td>124</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{position_time}</code></td>
+                                    <td>When position was last updated</td>
+                                    <td>1724735286</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3 style="margin-top: 1rem; font-size: 1.1rem;">Telemetry</h3>
+                        <table class="placeholder-table">
+                            <thead>
+                                <tr>
+                                    <th>Placeholder</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>{battery_level}</code></td>
+                                    <td>Battery percentage</td>
+                                    <td>87</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{voltage}</code></td>
+                                    <td>Battery voltage</td>
+                                    <td>3.82</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{telemetry_time}</code></td>
+                                    <td>Telemetry timestamp</td>
+                                    <td>1724735286</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3 style="margin-top: 1rem; font-size: 1.1rem;">Signal Information</h3>
+                        <table class="placeholder-table">
+                            <thead>
+                                <tr>
+                                    <th>Placeholder</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>{snr}</code></td>
+                                    <td>Signal-to-noise ratio</td>
+                                    <td>8.5</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{rssi}</code></td>
+                                    <td>Signal strength (RSSI)</td>
+                                    <td>-92</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3 style="margin-top: 1rem; font-size: 1.1rem;">Channel & Air Utilization</h3>
+                        <table class="placeholder-table">
+                            <thead>
+                                <tr>
+                                    <th>Placeholder</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>{channel_utilization}</code></td>
+                                    <td>Channel usage percentage</td>
+                                    <td>12.5</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{air_util_tx}</code></td>
+                                    <td>Air utilization for TX</td>
+                                    <td>4.2</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3 style="margin-top: 1rem; font-size: 1.1rem;">Device Information</h3>
+                        <table class="placeholder-table">
+                            <thead>
+                                <tr>
+                                    <th>Placeholder</th>
+                                    <th>Description</th>
+                                    <th>Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>{hw_model}</code></td>
+                                    <td>Hardware model</td>
+                                    <td>TBEAM</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{firmware_version}</code></td>
+                                    <td>Firmware version</td>
+                                    <td>2.2.19</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{role}</code></td>
+                                    <td>Node role</td>
+                                    <td>ROUTER</td>
+                                </tr>
+                                <tr>
+                                    <td><code>{last_heard}</code></td>
+                                    <td>Last heard timestamp</td>
+                                    <td>1724735286</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; background-color: var(--code-background); padding: 1rem; border-radius: 0.375rem;">
+                        <p style="font-weight: 500; margin-top: 0; color: var(--text-color);">Example usage:</p>
+                        <p style="font-family: monospace; background-color: var(--pill-background); padding: 0.5rem; border-radius: 0.25rem; margin-bottom: 0; color: var(--text-color);">
+                            "Hi {name}! Your battery is at {battery_level}% and your location is {location}."
+                        </p>
+                    </div>
+
+                    <div class="button-row">
+                        <button type="button" class="btn primary" onclick="hidePlaceholdersHelp()">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const RULE_API_BASE_URL = '/api/auto_reply/rules';
+
+        function sanitizeHTML(str) {
+            if (str === null || str === undefined) return '';
+            const temp = document.createElement('div');
+            temp.textContent = String(str);
+            return temp.innerHTML;
+        }
+
+        function updateStatus(status, message = null) {
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            const safeStatus = status?.toLowerCase() ?? 'disconnected';
+            const displayStatus = (safeStatus === 'ready' || safeStatus === 'ok' || safeStatus === 'connected') ? 'connected' : safeStatus;
+
+            if (statusIndicator) statusIndicator.className = 'status-indicator ' + displayStatus;
+            if (statusText) statusText.textContent = message || status || 'Unknown';
+        }
+
+        function showLoading(selector, show = true, message = 'Loading...') {
+            const element = document.querySelector(selector);
+            if (element) {
+                 if (show) {
+                    element.style.display = 'flex'; // Use flex for centering loading message
+                    element.style.justifyContent = 'center'; // Center horizontally
+                    element.style.alignItems = 'center'; // Center vertically
+                    element.innerHTML = `<div class="loading-placeholder"><i class="fas fa-circle-notch fa-spin" style="margin-right: 0.5rem;"></i> ${message}</div>`;
+                } else {
+                    element.innerHTML = '';
+                    // Reset display based on its intended layout (grid for rule list)
+                    if (selector === '#existing-rules-list') {
+                        element.style.display = 'grid';
+                        // Reset flex alignment if it was set during loading
+                        element.style.justifyContent = '';
+                        element.style.alignItems = '';
+                    } else {
+                         element.style.display = 'none'; // Default to none if not loading
+                    }
+                }
+            }
+        }
+
+
+        function showError(selector, message = '', show = true) {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.innerHTML = show ? `<i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i> ${sanitizeHTML(message)}` : '';
+                element.style.display = show ? 'flex' : 'none';
+                element.className = 'error-message'; // Ensure class is set correctly
+            }
+        }
+
+        function showSuccess(selector, message = '', show = true) {
+            const element = document.querySelector(selector);
+            if (element) {
+                element.innerHTML = show ? `<i class="fas fa-check-circle" style="margin-right: 0.5rem;"></i> ${sanitizeHTML(message)}` : '';
+                element.style.display = show ? 'flex' : 'none';
+                element.className = 'success-message'; // Ensure class is set correctly
+            }
+        }
+
+
+        function showModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('active');
+        }
+
+        function hideModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('active');
+        }
+
+        function showRuleModal(ruleData = null) {
+            const ruleForm = document.getElementById('rule-form');
+            const ruleModalTitle = document.getElementById('rule-modal-title');
+            const ruleIdInput = document.getElementById('rule-id');
+            const ruleStatusDiv = document.getElementById('rule-status');
+            const saveRuleBtn = document.getElementById('save-rule-btn');
+
+            if (!ruleForm || !ruleModalTitle || !ruleIdInput || !ruleStatusDiv) {
+                console.error("Modal elements missing!");
+                alert("Error: Cannot open rule setup form.");
+                return;
+            }
+
+            ruleForm.reset();
+            // Clear any previous status messages when opening modal
+            showError('#rule-status', '', false);
+            showSuccess('#rule-status', '', false);
+            ruleStatusDiv.style.display = 'none'; // Hide status div initially
+            ruleIdInput.value = '';
+            saveRuleBtn.disabled = false; // Ensure button is enabled
+
+            if (ruleData) {
+                ruleModalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Auto-Reply Rule';
+                saveRuleBtn.textContent = 'Update Rule';
+                ruleIdInput.value = ruleData.id;
+
+                document.getElementById('rule-trigger-phrase').value = ruleData.trigger_phrase || '';
+                document.getElementById('rule-match-type').value = ruleData.match_type || 'contains';
+                document.getElementById('rule-response-message').value = ruleData.response_message || '';
+                document.getElementById('rule-cooldown').value = ruleData.cooldown_seconds ?? 60;
+                document.getElementById('rule-enabled').checked = ruleData.is_enabled === true || ruleData.is_enabled === 1;
+            } else {
+                ruleModalTitle.innerHTML = '<i class="fas fa-plus"></i> Add New Auto-Reply Rule';
+                saveRuleBtn.textContent = 'Save Rule';
+                // Set defaults for new rule
+                document.getElementById('rule-trigger-phrase').value = '';
+                document.getElementById('rule-match-type').value = 'contains';
+                document.getElementById('rule-response-message').value = '';
+                document.getElementById('rule-cooldown').value = 60;
+                document.getElementById('rule-enabled').checked = true;
+            }
+
+            showModal('rule-setup-modal');
+            document.getElementById('rule-trigger-phrase').focus();
+        }
+
+        function hideRuleModal() {
+            hideModal('rule-setup-modal');
+        }
+
+        function showPlaceholdersHelp() {
+            showModal('placeholders-help-modal');
+        }
+
+        function hidePlaceholdersHelp() {
+            hideModal('placeholders-help-modal');
+        }
+
+        function insertPlaceholder(placeholder) {
+            const responseTextarea = document.getElementById('rule-response-message');
+            if (!responseTextarea) return;
+
+            const startPos = responseTextarea.selectionStart;
+            const endPos = responseTextarea.selectionEnd;
+
+            const textBefore = responseTextarea.value.substring(0, startPos);
+            const textAfter = responseTextarea.value.substring(endPos);
+            const textToInsert = `{${placeholder}}`;
+
+            responseTextarea.value = `${textBefore}${textToInsert}${textAfter}`;
+
+            const newCursorPos = startPos + textToInsert.length;
+            responseTextarea.focus();
+            // Set cursor position after the inserted text
+            responseTextarea.setSelectionRange(newCursorPos, newCursorPos);
+        }
+
+        function renderRuleItem(rule) {
+            const isEnabled = rule.is_enabled === true || rule.is_enabled === 1;
+            const statusIconClass = isEnabled ? 'fa-toggle-on' : 'fa-toggle-off';
+            const statusTitle = isEnabled ? 'Rule is enabled (click to disable)' : 'Rule is disabled (click to enable)';
+            const hasPlaceholders = rule.response_message && /\{[^}]+\}/.test(rule.response_message);
+
+            let matchTypeIcon, matchTypeLabel;
+            switch (rule.match_type) {
+                case 'exact':
+                    matchTypeIcon = 'fa-equals';
+                    matchTypeLabel = 'Exact Match';
+                    break;
+                case 'regex':
+                    matchTypeIcon = 'fa-code';
+                    matchTypeLabel = 'Regex';
+                    break;
+                case 'contains':
+                default:
+                    matchTypeIcon = 'fa-magnifying-glass';
+                    matchTypeLabel = 'Contains';
+                    break;
+            }
+
+            // Sanitize user-provided content before inserting into HTML
+            const safeTrigger = sanitizeHTML(rule.trigger_phrase);
+            const safeResponse = sanitizeHTML(rule.response_message);
+            const safeCooldown = sanitizeHTML(rule.cooldown_seconds ?? '0');
+
+            return `
+                <div class="rule-item" data-rule-id="${rule.id}">
+                    <div class="rule-header">
+                        <div class="rule-title">
+                            <i class="fas ${matchTypeIcon}" title="${matchTypeLabel}" style="margin-right: 0.5rem; color: var(--primary-color);"></i>
+                            Trigger: <code>${safeTrigger}</code>
+                        </div>
+                        <div class="rule-status">
+                            <span class="rule-status-toggle ${isEnabled ? 'enabled' : 'disabled'}"
+                                  title="${statusTitle}"
+                                  onclick="toggleRuleEnabled('${rule.id}')">
+                                <i class="fas ${statusIconClass}"></i>
+                                <span>${isEnabled ? 'Enabled' : 'Disabled'}</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="rule-content">
+                        <p><i class="fas fa-reply"></i> <strong>Response:</strong> ${safeResponse}</p>
+                    </div>
+
+                    <div class="rule-meta">
+                        <div class="rule-meta-item"><i class="fas fa-clock"></i> Cooldown: ${safeCooldown}s</div>
+                        ${hasPlaceholders ?
+                            '<div class="rule-meta-item"><i class="fas fa-tags"></i> Uses dynamic placeholders</div>' : ''}
+                    </div>
+
+                    <div class="rule-actions">
+                        <button class="btn secondary" onclick="editRule('${rule.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn danger" onclick="deleteRule('${rule.id}')">
+                            <i class="fas fa-trash-alt"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function fetchAndDisplayRules() {
+            const listDiv = document.getElementById('existing-rules-list');
+            if (!listDiv) return;
+
+            showLoading('#existing-rules-list', true, 'Loading rules...');
+            updateStatus('connecting', 'Fetching rules...');
+
+            try {
+                const response = await fetch(RULE_API_BASE_URL);
+                if (!response.ok) {
+                    let errorMsg = `HTTP error ${response.status}`;
+                    try { errorMsg = (await response.json()).detail || errorMsg; } catch (_) {}
+                    throw new Error(errorMsg);
+                }
+
+                const rules = await response.json();
+                showLoading('#existing-rules-list', false); // Pass false to hide loading
+
+                if (rules && rules.length > 0) {
+                    listDiv.innerHTML = rules.map(renderRuleItem).join('');
+                    updateStatus('connected', `${rules.length} rule${rules.length !== 1 ? 's' : ''} loaded`);
+                } else {
+                    listDiv.innerHTML = `
+                        <div class="no-data-placeholder">
+                            <i class="fas fa-info-circle" style="font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--text-light);"></i>
+                            <p>No auto-reply rules found. Add one to get started!</p>
+                        </div>
+                    `;
+                    updateStatus('connected', 'No rules found');
+                }
+            } catch (error) {
+                console.error("Error fetching rules:", error);
+                showLoading('#existing-rules-list', false); // Hide loading on error too
+                listDiv.innerHTML = `
+                    <div class="error-message" style="margin: 1rem; grid-column: 1 / -1; justify-content: center;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+                        Error loading rules: ${sanitizeHTML(error.message)}. Check backend connection.
+                    </div>
+                `;
+                updateStatus('disconnected', 'Error loading rules');
+             }
+        }
+
+        async function handleRuleFormSubmit(event) {
+            event.preventDefault();
+
+            const ruleForm = document.getElementById('rule-form');
+            const ruleStatusDiv = document.getElementById('rule-status');
+            const ruleIdInput = document.getElementById('rule-id');
+            const saveRuleBtn = document.getElementById('save-rule-btn');
+
+            if (!ruleForm || !ruleStatusDiv || !ruleIdInput || !saveRuleBtn) return;
+
+            const ruleId = ruleIdInput.value;
+            const isEditing = !!ruleId;
+
+            // Clear previous status, show loading, disable button
+            showError('#rule-status', '', false);
+            showSuccess('#rule-status', `${isEditing ? 'Updating rule...' : 'Saving rule...'}`, true);
+            ruleStatusDiv.style.display = 'flex'; // Make sure status div is visible
+            saveRuleBtn.disabled = true;
+
+            const formData = new FormData(ruleForm);
+            const ruleData = {
+                trigger_phrase: formData.get('triggerPhrase'),
+                match_type: formData.get('matchType'),
+                response_message: formData.get('responseMessage'),
+                cooldown_seconds: parseInt(formData.get('cooldownSeconds'), 10) || 0,
+                is_enabled: document.getElementById('rule-enabled').checked
+            };
+
+            // Basic validation
+            if (!ruleData.trigger_phrase || !ruleData.response_message) {
+                showSuccess('#rule-status', '', false); // Hide loading message
+                showError('#rule-status', 'Error: Trigger Phrase and Response Message are required.', true);
+                ruleStatusDiv.style.display = 'flex'; // Make sure error is visible
+                saveRuleBtn.disabled = false;
+                return;
+            }
+
+            const url = isEditing ? `${RULE_API_BASE_URL}/${ruleId}` : RULE_API_BASE_URL;
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ruleData)
+                });
+
+                const responseBody = await response.json(); // Try to parse JSON regardless of status
+
+                if (!response.ok) {
+                    // Use detail from response body if available, otherwise construct error message
+                    const errorMsg = responseBody?.detail || `Request failed with status ${response.status}`;
+                    throw new Error(errorMsg);
+                }
+
+                // Success
+                showError('#rule-status', '', false); // Clear potential previous errors
+                showSuccess('#rule-status', `Rule ${isEditing ? 'updated' : 'saved'} successfully!`, true);
+                ruleStatusDiv.style.display = 'flex'; // Ensure success message is visible
+
+                fetchAndDisplayRules(); // Refresh the list
+                setTimeout(hideRuleModal, 1500); // Close modal after a short delay
+
+            } catch (error) {
+                console.error(`Error ${isEditing ? 'updating' : 'saving'} rule:`, error);
+                 showSuccess('#rule-status', '', false); // Hide loading/success message
+                 showError('#rule-status', `Error: ${sanitizeHTML(error.message)}`, true);
+                 ruleStatusDiv.style.display = 'flex'; // Ensure error message is visible
+            } finally {
+                saveRuleBtn.disabled = false; // Re-enable button
+            }
+        }
+
+        async function editRule(ruleId) {
+            if (!ruleId) return;
+
+            updateStatus('connecting', `Loading rule ${ruleId} details...`);
+
+            try {
+                const response = await fetch(`${RULE_API_BASE_URL}/${ruleId}`);
+                 const ruleData = await response.json(); // Try to parse JSON regardless of status
+
+                if (!response.ok) {
+                    const errorMsg = ruleData?.detail || `Request failed with status ${response.status}`;
+                    throw new Error(errorMsg);
+                }
+
+                showRuleModal(ruleData);
+                updateStatus('connected', `Rule ${ruleId} loaded for editing.`);
+
+            } catch (error) {
+                console.error(`Error fetching rule ${ruleId} for editing:`, error);
+                alert(`Error loading rule for editing: ${sanitizeHTML(error.message)}`);
+                updateStatus('disconnected', `Error loading rule ${ruleId}`);
+            }
+        }
+
+        async function deleteRule(ruleId) {
+            if (!ruleId) return;
+
+            if (!confirm(`Are you sure you want to delete rule ID ${ruleId}? This action cannot be undone.`)) {
+                return;
+            }
+
+            const ruleElement = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
+            if(ruleElement) ruleElement.style.opacity = '0.5'; // Visual feedback
+            updateStatus('connecting', `Deleting rule ${ruleId}...`);
+
+            try {
+                const response = await fetch(`${RULE_API_BASE_URL}/${ruleId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok && response.status !== 204) { // 204 No Content is a valid success response for DELETE
+                    let errorMsg = `HTTP error ${response.status}`;
+                     try {
+                        const errorData = await response.json();
+                        errorMsg = errorData?.detail || errorMsg;
+                     } catch (_) {
+                        // Ignore if response body is not JSON or empty
+                     }
+                    throw new Error(errorMsg);
+                }
+
+                // Success (status 200 OK or 204 No Content)
+                fetchAndDisplayRules(); // Refresh the list
+                updateStatus('connected', `Rule ${ruleId} deleted successfully`);
+
+            } catch (error) {
+                console.error(`Error deleting rule ${ruleId}:`, error);
+                alert(`Error deleting rule: ${sanitizeHTML(error.message)}`);
+                if(ruleElement) ruleElement.style.opacity = '1'; // Restore opacity on error
+                updateStatus('disconnected', `Error deleting rule ${ruleId}`);
+            }
+        }
+
+        async function toggleRuleEnabled(ruleId) {
+             if (!ruleId) return;
+
+             const ruleToggle = document.querySelector(`.rule-item[data-rule-id="${ruleId}"] .rule-status-toggle`);
+             if (ruleToggle) ruleToggle.style.opacity = '0.5'; // Visual feedback
+             updateStatus('connecting', `Toggling status for rule ${ruleId}...`);
+
+             try {
+                 // Step 1: Fetch the current rule data
+                 const responseGet = await fetch(`${RULE_API_BASE_URL}/${ruleId}`);
+                 const currentRule = await responseGet.json(); // Try to parse JSON regardless of status
+
+                 if (!responseGet.ok) {
+                     const errorMsg = currentRule?.detail || `Failed to fetch rule ${ruleId} (Status: ${responseGet.status})`;
+                     throw new Error(errorMsg);
+                 }
+
+
+                 // Step 2: Create the updated data object
+                 const updatedRuleData = {
+                     ...currentRule, // Include all existing fields
+                     is_enabled: !currentRule.is_enabled // Toggle the boolean status
+                 };
+                 // Optional: remove id if your PUT endpoint doesn't expect/want it
+                 // delete updatedRuleData.id;
+
+                 // Step 3: Send the PUT request
+                 const responsePut = await fetch(`${RULE_API_BASE_URL}/${ruleId}`, {
+                     method: 'PUT',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify(updatedRuleData)
+                 });
+
+                  const putResult = await responsePut.json(); // Try to parse JSON regardless of status
+
+                 if (!responsePut.ok) {
+                     const errorMsg = putResult?.detail || `Failed to update rule ${ruleId} (Status: ${responsePut.status})`;
+                     throw new Error(errorMsg);
+                 }
+
+                 // Step 4: Refresh the list
+                 fetchAndDisplayRules();
+                 updateStatus('connected', `Rule ${ruleId} ${updatedRuleData.is_enabled ? 'enabled' : 'disabled'} successfully`);
+
+             } catch (error) {
+                 console.error(`Error toggling rule ${ruleId}:`, error);
+                 alert(`Error toggling rule status: ${sanitizeHTML(error.message)}`);
+                 if (ruleToggle) ruleToggle.style.opacity = '1'; // Restore opacity on error
+                 updateStatus('disconnected', `Error toggling rule ${ruleId}`);
+             } finally {
+                  if (ruleToggle) ruleToggle.style.opacity = '1'; // Ensure opacity is restored
+              }
+         }
+
+
+        function initializeAutoReplyRules() {
+            console.log("Auto-Reply Rules Manager initializing...");
+
+            updateStatus('connecting', 'Initializing...');
+
+            const addRuleBtn = document.getElementById('add-rule-btn');
+            const refreshBtn = document.getElementById('refresh-rules-btn');
+            const ruleForm = document.getElementById('rule-form');
+
+            if (addRuleBtn) addRuleBtn.addEventListener('click', () => showRuleModal()); else console.error("Add rule button not found");
+            if (refreshBtn) refreshBtn.addEventListener('click', fetchAndDisplayRules); else console.error("Refresh button not found");
+            if (ruleForm) ruleForm.addEventListener('submit', handleRuleFormSubmit); else console.error("Rule form not found");
+
+            fetchAndDisplayRules(); // Initial fetch
+
+            // Add global listener for Escape key to close modals
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideRuleModal();
+                    hidePlaceholdersHelp();
+                }
+            });
+
+             // Fetch and display local node ID
+             fetch('/api/node/info')
+                 .then(response => {
+                     if (response.ok) return response.json();
+                      console.warn('Could not fetch local node info, status:', response.status);
+                      return null;
+                 })
+                 .then(data => {
+                     const nodeInfoDiv = document.getElementById('local-node-info');
+                     if (nodeInfoDiv && data) {
+                        let nodeIdText = 'N/A';
+                        // Check multiple possible locations for node ID based on different firmware/API versions
+                        if (data.myNodeInfo?.num) {
+                            nodeIdText = `!${data.myNodeInfo.num.toString(16)}`;
+                        } else if (data.my_node_num) {
+                             nodeIdText = `!${data.my_node_num.toString(16)}`;
+                        } else if (data.nodeId) {
+                            nodeIdText = data.nodeId;
+                        } else if (data.id) { // Generic fallback
+                            nodeIdText = data.id;
+                        }
+                         nodeInfoDiv.innerHTML = `<i class="fas fa-laptop"></i> Local node: <strong class="node-id">${sanitizeHTML(nodeIdText)}</strong>`;
+                     } else if (nodeInfoDiv) {
+                         nodeInfoDiv.innerHTML = `<i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong>`;
+                     }
+                 })
+                 .catch(err => {
+                     console.error('Could not fetch local node info:', err);
+                     const nodeInfoDiv = document.getElementById('local-node-info');
+                      if (nodeInfoDiv) {
+                          nodeInfoDiv.innerHTML = `<i class="fas fa-laptop"></i> Local node: <strong class="node-id">N/A</strong>`;
+                      }
+                 });
+
+        }
+    </script>
+
+    <div id="md-update-modal">
+    <div class="md-modal-content">
+        <span class="md-modal-close" id="md-modal-close-btn">&times;</span>
+        <h3><i class="fas fa-arrow-circle-up"></i> Update Available</h3>
+        <p>A newer version of the Mesh Dashboard is available!</p>
+        <p>You can download the latest version from:</p>
+        <p style="text-align: center; margin: 15px 0;">
+            <a href="https://meshdash.co.uk/" target="_blank">https://meshdash.co.uk/</a>
+        </p>
+        <div class="md-modal-note">
+            <i class="fas fa-info-circle"></i> Please check the documentation for update instructions.
+        </div>
+    </div>
+</div>
+
+<div class="footer-container">
+    <div class="footer-left">
+        <div class="footer-item">
+            <i class="fas fa-cubes"></i>
+            <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+            <strong>Rusjp</strong>
+        </div>
+
+        <div class="footer-divider">|</div>
+
+        <div class="footer-item">
+            <span>Version:</span>
+            <strong id="md-installed-version">Loading...</strong>
+        </div>
+
+        <div id="md-update-container" style="display: none;">
+            <div class="footer-divider">|</div>
+            <div class="footer-item">
+                <i class="fas fa-arrow-circle-up"></i>
+                <span>Update Available:</span>
+                <strong id="md-latest-version"></strong>
+                <button id="md-update-btn">Info</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+
+    const LOCAL_CONFIG_API_URL = '/api/system/config/';
+    const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version';
+
+    const instVerSpan = document.getElementById('md-installed-version');
+    const updateContainer = document.getElementById('md-update-container');
+    const latestVersionSpan = document.getElementById('md-latest-version');
+    const updateModal = document.getElementById('md-update-modal');
+    const updateBtn = document.getElementById('md-update-btn');
+    const modalCloseBtn = document.getElementById('md-modal-close-btn');
+
+    async function fetchLocalConfig() {
+        console.debug(`Workspaceing local config from: ${LOCAL_CONFIG_API_URL}`);
+        try {
+            const response = await fetch(LOCAL_CONFIG_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching local config: ${response.status} ${response.statusText}`);
+                try { console.error("Local config error body:", await response.text()); } catch(e){}
+                return null;
+            }
+            const configData = await response.json();
+            console.debug("Received local config data:", configData);
+            return configData;
+        } catch (error) {
+            console.error('Failed to fetch or parse local configuration:', error);
+            return null;
+        }
+    }
+
+    async function fetchExternalVersion() {
+        console.debug(`Workspaceing latest version from: ${EXTERNAL_VERSION_API_URL}`);
+        try {
+            const response = await fetch(EXTERNAL_VERSION_API_URL);
+             if (!response.ok) {
+                 console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                 try { console.error("External version error body:", await response.text()); } catch(e){}
+                 return null;
+            }
+            const versionData = await response.json();
+             console.debug("Received external version data:", versionData);
+             return versionData;
+        } catch (error) {
+            console.error('Error fetching or parsing external version:', error);
+             return null;
+        }
+    }
+
+    function compareVersions(v1, v2) {
+        if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+            console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+            return 0;
+        }
+        try {
+            const p1 = v1.substring(1).split('.').map(Number);
+            const p2 = v2.substring(1).split('.').map(Number);
+            if (p1.some(isNaN) || p2.some(isNaN)) {
+                console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                return 0;
+            }
+            const len = Math.max(p1.length, p2.length);
+            for (let i = 0; i < len; i++) {
+                const n1 = p1[i] || 0;
+                const n2 = p2[i] || 0;
+                if (n1 < n2) return -1;
+                if (n1 > n2) return 1;
+            }
+            return 0;
+        } catch (e) {
+            console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+            return 0;
+        }
+    }
+
+    async function initFooter() {
+        if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+            console.error('Footer initialization failed: missing essential display elements.');
+            if (instVerSpan) instVerSpan.textContent = 'Error!';
+            return;
+        }
+         if (updateBtn && (!updateModal || !modalCloseBtn)) {
+            console.warn('Modal elements (md-update-modal, md-modal-close-btn) seem missing. Update info button might not work.');
+        }
+
+        let installedVersion = null;
+        const localConfig = await fetchLocalConfig();
+        if (localConfig?.INSTALLED_VERSION) { // Use optional chaining
+            installedVersion = localConfig.INSTALLED_VERSION.trim();
+            instVerSpan.textContent = sanitizeHTML(installedVersion); // Sanitize output
+            instVerSpan.style.color = '';
+        } else {
+            console.error("Could not retrieve installed version from local config API.");
+            instVerSpan.textContent = 'Error!';
+            instVerSpan.style.color = 'var(--error-color)';
+            return;
+        }
+
+        const externalData = await fetchExternalVersion();
+        if (externalData?.version && typeof externalData.version === 'string') { // Optional chaining
+            const latestAvailableVersion = externalData.version.trim();
+            const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+            console.log(`Version Comparison: Installed='${installedVersion}', Latest='${latestAvailableVersion}', Result=${comparisonResult}`);
+
+            if (comparisonResult < 0) {
+                console.log("Update available!");
+                latestVersionSpan.textContent = sanitizeHTML(latestAvailableVersion); // Sanitize output
+                updateContainer.style.display = 'flex';
+                if (updateBtn) updateBtn.style.display = 'inline-block';
+            } else {
+                 console.log(comparisonResult === 0 ? "Version is up to date." : "Installed version is newer or equal.");
+                 updateContainer.style.display = 'none';
+             }
+        } else {
+            console.warn("Could not retrieve latest version from external API. Update check skipped.");
+             updateContainer.style.display = 'none';
+        }
+
+        // Setup modal listeners only if all parts are present
+        if (updateBtn && updateModal && modalCloseBtn) {
+             updateBtn.addEventListener('click', () => { updateModal.style.display = 'block'; });
+             modalCloseBtn.addEventListener('click', () => { updateModal.style.display = 'none'; });
+             window.addEventListener('click', (e) => { if (e.target === updateModal) updateModal.style.display = 'none'; });
+             document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && updateModal.style.display === 'block') updateModal.style.display = 'none'; });
+        } else {
+             if(updateBtn) updateBtn.style.display = 'none'; // Hide button if modal is incomplete
+         }
+    }
+
+    document.addEventListener('DOMContentLoaded', initFooter);
+
+})();
+</script>
+
+</body>
+</html>

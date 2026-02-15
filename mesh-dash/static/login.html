@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Rusjp MeshDash</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --background-color: #1e222d;
+            --card-background: #2a2f3c;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --primary-accent: #00aaff;
+            --primary-accent-dark: #0077cc;
+            --border-color: #444958;
+            --input-background: #171a21;
+            --radius-md: 8px;
+            --radius-sm: 4px;
+            --error-color: #e74c3c;
+            --error-bg: rgba(231, 76, 60, 0.1);
+            --map-overlay-opacity: 0.75;
+            --countdown-text-color: var(--primary-accent-dark);
+        }
+
+        #image-background-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            z-index: -2;
+        }
+
+        #background-image {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform-origin: center center;
+        }
+
+        .map-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, var(--map-overlay-opacity));
+            z-index: -1;
+        }
+
+        body.login-body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .login-header-title,
+        .login-card,
+        .login-footer {
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-header-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header-title h1 {
+            font-size: 2.2rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .login-header-title h1 .fas {
+            margin-right: 10px;
+            color: var(--primary-accent);
+        }
+
+        .login-header-title .highlight {
+            color: var(--primary-accent);
+        }
+
+        .login-card {
+            background-color: var(--card-background);
+            padding: 2.5rem 2rem;
+            border-radius: var(--radius-md, 8px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-card h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm, 4px);
+            background-color: var(--input-background);
+            color: var(--text-primary);
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group input[type="password"]:focus {
+            outline: none;
+            border-color: var(--primary-accent);
+            box-shadow: 0 0 0 3px rgba(0, 170, 255, 0.2);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 0.8rem;
+            border: none;
+            border-radius: var(--radius-sm, 4px);
+            background-color: var(--primary-accent);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .login-button:hover {
+            background-color: var(--primary-accent-dark);
+        }
+
+        .login-footer {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .message-box {
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: var(--radius-sm);
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .message-box p {
+            margin: 0.5rem 0 0.25rem;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            color: var(--text-primary);
+        }
+
+        .message-box p:first-child {
+            margin-top: 0.25rem;
+        }
+
+        .message-box strong {
+            font-weight: 600;
+            color: var(--primary-accent);
+        }
+
+        .message-box strong + p {
+            margin-top: 0.25rem;
+        }
+
+        .message-box p.debug-info {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+        }
+
+        .message-box-info {
+            background-color: rgba(0, 170, 255, 0.1);
+            color: var(--primary-accent);
+            border: 1px solid var(--primary-accent);
+        }
+
+        .message-box-info p {
+            color: var(--primary-accent);
+        }
+
+        .message-box-info strong {
+            color: var(--primary-accent);
+        }
+
+        .message-box-info .countdown-text {
+            font-weight: bold;
+            color: var(--countdown-text-color);
+        }
+
+        .message-box-info .manual-redirect-link {
+            color: var(--primary-accent);
+            text-decoration: underline;
+        }
+         .message-box-info .manual-redirect-link:hover {
+            color: var(--primary-accent-dark);
+        }
+
+
+        .message-box-error {
+            background-color: var(--error-bg);
+            color: var(--error-color);
+            border: 1px solid var(--error-color);
+        }
+
+        .message-box-error p {
+             color: var(--error-color);
+        }
+
+        .message-box-error strong {
+             color: var(--error-color);
+        }
+
+    </style>
+</head>
+<body class="login-body">
+
+    <div id="image-background-container">
+        <img src="static/img/map.png" id="background-image" alt="World Map Background">
+    </div>
+    <div class="map-overlay"></div>
+
+    <div class="login-header-title">
+        <h1><i class="fas fa-network-wired"></i> Rusjp <span class="highlight">MeshDash</span></h1>
+    </div>
+
+    <div class="login-card">
+        <h2>Login</h2>
+        <div id="message-container" style="min-height: 1px;">
+        </div>
+        <form id="login-form" action="/login" method="post">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required placeholder="Enter your username">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Enter your password">
+            </div>
+            <button type="submit" class="login-button">Login</button>
+        </form>
+    </div>
+
+    <div class="login-footer">
+        &copy; <span id="currentYear"></span> Rusjp MeshDash. All rights reserved.
+    </div>
+
+    <script>
+        async function checkFirstRun() {
+            const messageContainer = document.getElementById('message-container');
+            const loginForm = document.getElementById('login-form');
+
+            if (!messageContainer) {
+                console.error("CRITICAL: Message container 'message-container' not found in DOM.");
+                return;
+            }
+            if (!loginForm) {
+                console.error("CRITICAL: Login form 'login-form' not found in DOM.");
+            }
+
+            messageContainer.innerHTML = '';
+            messageContainer.style.marginBottom = "0";
+
+            try {
+                const uniqueUrl = '/static/.new?t=' + new Date().getTime();
+                console.log('checkFirstRun: Attempting to fetch:', uniqueUrl);
+
+                const response = await fetch(uniqueUrl, {
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
+
+                console.log('checkFirstRun: Fetch response received. Status:', response.status, 'Ok:', response.ok);
+
+                if (response.ok) {
+                    console.log("checkFirstRun: '/static/.new' file found. This indicates first run or setup needed for MeshDash.");
+                    if (loginForm) loginForm.style.display = 'none';
+                    messageContainer.style.marginBottom = "1.5rem";
+                    messageContainer.innerHTML = `
+                        <div class="message-box message-box-info">
+                            <p><strong>Welcome to MeshDash!</strong></p>
+                            <p>We're about to redirect you to the Settings page.</p>
+                            <p>There, you can set up your Admin account and configure your data preferences.</p>
+                            <p>Redirecting in <span id="countdown-seconds" class="countdown-text">10</span> seconds...</p>
+                            <p style="font-size: 0.8rem; opacity: 0.8;"><em>(If you are not redirected automatically, please click <a href="static/setup.html" class="manual-redirect-link">here</a>.)</em></p>
+                        </div>`;
+
+                    let secondsRemaining = 10;
+                    const countdownElement = document.getElementById('countdown-seconds');
+                    let redirectTimer;
+                    let countdownInterval;
+
+
+                    if (countdownElement) {
+                        countdownInterval = setInterval(() => {
+                            secondsRemaining--;
+                            countdownElement.textContent = secondsRemaining;
+                            if (secondsRemaining <= 0) {
+                                clearInterval(countdownInterval);
+                            }
+                        }, 1000);
+                    } else {
+                         console.warn("Countdown element 'countdown-seconds' not found.");
+                    }
+
+                    redirectTimer = setTimeout(() => {
+                        if (countdownInterval) clearInterval(countdownInterval);
+                        console.log("Redirecting to static/setup.html");
+                        window.location.href = 'static/setup.html';
+                    }, 10000);
+
+                } else {
+                    console.log("checkFirstRun: '/static/.new' file not found or not accessible. Status:", response.status + ". Proceeding with normal login.");
+                    if (loginForm) loginForm.style.display = 'block';
+                }
+            } catch (error) {
+                console.error("checkFirstRun: Error during fetch operation:", error);
+                if (loginForm) loginForm.style.display = 'none';
+                messageContainer.style.marginBottom = "1.5rem";
+                messageContainer.innerHTML = `
+                    <div class="message-box message-box-error">
+                        <strong>Application Error</strong>
+                        <p>Could not check application status. Please verify your network connection and check the browser console for more details.</p>
+                        <p class="debug-info">(Debug: ${error.message})</p>
+                    </div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded: Event fired.');
+            const usernameField = document.getElementById('username');
+            const currentYearEl = document.getElementById('currentYear');
+            const loginForm = document.getElementById('login-form');
+
+            if (currentYearEl) {
+                currentYearEl.textContent = new Date().getFullYear();
+                console.log('DOMContentLoaded: Current year set.');
+            } else {
+                console.warn('DOMContentLoaded: Current year element not found.');
+            }
+
+            if (!usernameField) {
+                console.warn('DOMContentLoaded: Username field not found.');
+            }
+            if (!loginForm) {
+                console.warn('DOMContentLoaded: Login form element not found.');
+            }
+
+            console.log('DOMContentLoaded: Initiating first run check.');
+            checkFirstRun().then(() => {
+                if (usernameField && loginForm && loginForm.style.display !== 'none') {
+                    const messageContainer = document.getElementById('message-container');
+                    if (!messageContainer || messageContainer.innerHTML.trim() === '') {
+                        usernameField.focus();
+                        console.log('DOMContentLoaded: Username field focused after first run check (no redirect).');
+                    }
+                }
+            });
+
+            const imageElement = document.getElementById('background-image');
+            if (imageElement) {
+                console.log('DOMContentLoaded: Setting up animated background.');
+                const zoomTargets = [
+                    { scale: 1.2, x: '0%', y: '0%', origin: 'center center' },
+                    { scale: 1.8, x: '-15%', y: '10%', origin: '30% 40%' },
+                    { scale: 1.6, x: '20%', y: '-15%', origin: '70% 60%' },
+                    { scale: 2.0, x: '5%', y: '5%', origin: '50% 80%' },
+                    { scale: 1.5, x: '-5%', y: '-5%', origin: '20% 70%' }
+                ];
+                let currentTargetIndex = 0;
+                const animationTransitionDuration = 4000;
+                const delayAtLocation = 3000;
+
+                function applyNextImageState() {
+                    if (zoomTargets.length === 0 || !imageElement) return;
+                    const target = zoomTargets[currentTargetIndex];
+                    imageElement.style.transformOrigin = target.origin;
+                    imageElement.style.transform = `scale(${target.scale}) translate(${target.x}, ${target.y})`;
+                    currentTargetIndex = (currentTargetIndex + 1) % zoomTargets.length;
+                    setTimeout(applyNextImageState, delayAtLocation + animationTransitionDuration);
+                }
+
+                imageElement.onload = () => {
+                    console.log('Animated Background: Image loaded.');
+                    if (zoomTargets.length === 0) return;
+                    const initialTarget = zoomTargets[0];
+                    imageElement.style.transformOrigin = initialTarget.origin;
+                    imageElement.style.transform = `scale(${initialTarget.scale}) translate(${initialTarget.x}, ${initialTarget.y})`;
+                    imageElement.style.transition = `transform ${animationTransitionDuration / 1000}s ease-in-out, transform-origin ${animationTransitionDuration / 1000}s ease-in-out`;
+                    currentTargetIndex = (currentTargetIndex + 1) % zoomTargets.length;
+                    setTimeout(applyNextImageState, delayAtLocation + animationTransitionDuration);
+                };
+
+                imageElement.onerror = () => {
+                    console.error("Animated Background: Failed to load the background image: " + imageElement.src);
+                    const container = document.getElementById('image-background-container');
+                    if(container) container.style.display = 'none';
+                };
+
+                if (imageElement.complete && imageElement.naturalHeight !== 0 && typeof imageElement.naturalHeight !== "undefined") {
+                    console.log('Animated Background: Image already complete, triggering onload.');
+                    imageElement.onload();
+                } else if (!imageElement.src) {
+                    console.error("Animated Background: Background image src is not set or is empty.");
+                }
+            } else {
+                console.error("DOMContentLoaded: Background image element '#background-image' not found.");
+            }
+            console.log('DOMContentLoaded: Event listener setup complete.');
+        });
+    </script>
+
+</body>
+</html>

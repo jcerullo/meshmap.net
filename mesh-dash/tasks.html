@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meshtastic Task Scheduler</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <script>
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/static/top_nav.html')
+            .then(response => { if (!response.ok) { throw new Error(`HTTP error ${response.status} loading navigation`); } return response.text(); })
+            .then(data => {
+                const navPlaceholder = document.getElementById('nav-placeholder');
+                if (navPlaceholder) {
+                    navPlaceholder.innerHTML = data;
+                    const currentPath = window.location.pathname;
+                    const navLinks = navPlaceholder.querySelectorAll('.nav-link');
+                    navLinks.forEach(link => {
+                        const linkPath = link.getAttribute('href');
+
+                        if (linkPath === currentPath || (linkPath !== '/' && currentPath.startsWith(linkPath))) {
+                            link.classList.add('active');
+                        }
+                    });
+                } else {
+                    console.error("Navigation placeholder element not found.");
+                }
+            })
+            .catch(error => console.error('Error loading navigation:', error));
+    });
+    </script>
+    <style>
+
+        .task-input.hidden { display: none; }
+        .task-type-toggle label { margin-right: 10px; cursor: pointer; }
+        .cron-preview code.na { color: var(--text-secondary); font-style: italic; }
+        #task-status.error { color: var(--color-danger); font-weight: bold; margin-top: 10px; }
+        #task-status.success { color: var(--color-success); font-weight: bold; margin-top: 10px; }
+        #task-website-payload { min-height: 100px; font-family: monospace; width: 100%; box-sizing: border-box; }
+        #sensor-preview-area { margin-top: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; min-height: 30px; background-color: var(--background-secondary); font-size: 0.9rem; }
+        #sensor-preview-area .na, .live-preview-value.na { color: var(--text-secondary); font-style: italic; }
+        #sensor-preview-area .error, .live-preview-value .error { color: var(--color-danger); }
+        #sensor-preview-area pre { white-space: pre-wrap; word-break: break-all; margin-top: 5px; margin-bottom: 0; }
+        .loading-placeholder.na { color: var(--text-secondary); font-style: italic;}
+        .task-item .live-preview-value { display: inline-block; margin-left: 5px; }
+        .task-item .live-preview-value .loading,
+        .task-item .live-preview-value .error { font-style: italic; color: var(--text-secondary); }
+         .task-item .live-preview-value .error { color: var(--color-danger); }
+        .nodes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+        .node-card { background-color: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; display: flex; align-items: center; gap: 0.8rem; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
+        .node-card:hover { background-color: var(--background-tertiary); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .node-avatar { width: 40px; height: 40px; background-color: var(--color-primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; flex-shrink: 0; }
+        .node-info { display: flex; flex-direction: column; overflow: hidden; }
+        .node-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .node-id { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .task-item { background-color: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 4px; padding: 10px; margin-bottom: 10px; font-size: 0.9rem; }
+        .task-item div { margin-bottom: 4px; }
+        .task-item code { background-color: var(--background-tertiary); padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+        .task-actions { margin-top: 8px; }
+        .task-actions button { margin-right: 5px; padding: 3px 8px; font-size: 0.8rem; }
+        .task-actions button.delete { background-color: var(--color-danger); color: white; border-color: var(--color-danger-dark); }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background-color: var(--background-primary); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); width: 90%; max-width: 600px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); position: relative; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
+        .modal-header h2 { margin: 0; }
+        .close-btn { background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--text-secondary); padding: 0 10px; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+        .form-group input[type="text"], .form-group input[type="datetime-local"], .form-group input[type="time"], .form-group select, .form-group textarea { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--input-background); color: var(--text-primary); box-sizing: border-box; }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .schedule-options label, .task-type-toggle label { margin-right: 15px; font-weight: normal; }
+        .schedule-inputs .form-group { border-left: 3px solid var(--color-primary-light); padding-left: 10px; margin-top: 10px; }
+        .schedule-inputs .form-group.hidden { display: none; }
+        .form-actions { margin-top: 1.5rem; text-align: right; }
+        .cron-preview { margin-top: 1rem; background-color: var(--background-secondary); padding: 8px; border-radius: 4px; font-size: 0.9em; }
+        .cron-preview code { font-family: monospace; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .status-container { display: flex; align-items: center; gap: 0.5rem; padding: 5px 10px; background-color: var(--background-secondary); border-radius: 15px; font-size: 0.9rem; }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; background-color: var(--text-secondary);  transition: background-color 0.3s ease; }
+        .status-indicator.connected { background-color: var(--color-success); }
+        .status-indicator.error { background-color: var(--color-danger); }
+        .status-indicator.loading { background-color: var(--color-warning); animation: pulse 1.5s infinite ease-in-out; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        .card-header h2 { margin: 0; font-size: 1.2rem; }
+        .card-header-controls { display: flex; gap: 1rem; align-items: center; }
+        .search-container input[type="search"] { padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9rem; background-color: var(--input-background); color: var(--text-primary); }
+        #node-sort-buttons label { font-size: 0.9rem; margin-right: 5px; color: var(--text-secondary); }
+        #node-sort-buttons .sort-btn { background: none; border: 1px solid transparent; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 0.85rem; color: var(--text-secondary); transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+        #node-sort-buttons .sort-btn:hover { background-color: var(--background-tertiary); color: var(--text-primary); }
+        #node-sort-buttons .sort-btn.active { background-color: var(--color-primary-light); color: var(--color-primary-dark); border-color: var(--color-primary); font-weight: bold; }
+        #node-sort-buttons .sort-btn i { margin-left: 4px; }
+    </style>
+        <script src="/static/nav_loader.js" defer></script>
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-left">
+                <h1>Meshtastic Task Scheduler</h1>
+                <div class="status-container">
+                    <span id="status-indicator" class="status-indicator"></span> <span id="status-text">Initializing...</span>
+                </div>
+            </div>
+            </header>
+
+
+
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Existing Scheduled Tasks</h2>
+                <button class="btn" secondary onclick="fetchAndDisplayExistingTasks()" style="margin-left: 1rem;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+
+
+
+
+            </div>
+            <div class="card-content">
+                <div id="existing-tasks-list">
+                    <div class="loading-placeholder">Loading existing tasks...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Select Node to Schedule New Task</h2>
+                <div class="card-header-controls">
+                    <div id="node-sort-buttons">
+                        <label>Sort by:</label>
+                        <button class="sort-btn active" data-sort-key="name">Name <i class="fas fa-arrow-up-short-wide"></i></button>
+                        <button class="sort-btn" data-sort-key="id">ID</button>
+                    </div>
+                    <div class="search-container">
+                        <input type="search" id="node-search" placeholder="Search nodes..." aria-label="Search nodes">
+                    </div>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="nodes-grid" id="nodes-grid">
+                    <div class="loading-placeholder" style="grid-column: 1 / -1;">Loading nodes...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="task-setup-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="task-modal-title">Setup Task</h2>
+                <button class="close-btn" onclick="hideTaskModal()" aria-label="Close task modal">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="task-form">
+                    <input type="hidden" id="task-node-id" name="nodeId">
+                    <input type="hidden" id="task-edit-id" name="taskId"> <div id="task-node-info" style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+                        Task for: <strong>Node Name (!nodeid)</strong>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Task Type:</label>
+                        <div class="task-type-toggle">
+                            <input type="radio" id="task-type-message" name="taskType" value="message" checked>
+                            <label for="task-type-message">Message</label>
+                            <input type="radio" id="task-type-website" name="taskType" value="website_monitor">
+                            <label for="task-type-website">Sensor</label>
+                            </div>
+                    </div>
+
+                    <div class="form-group task-input task-input-message">
+                        <label for="task-message">Message / Payload:</label>
+                        <textarea id="task-message" name="message" placeholder="Enter text message..."></textarea>
+                    </div>
+
+                    <div class="form-group task-input task-input-website hidden">
+                         <label for="task-website-payload">Sensor Config (JSON):</label>
+                         <textarea id="task-website-payload" name="websitePayload" placeholder='{"url":"https://...","block_id":N,"prefix":"NAME",...}' required></textarea>
+                         <small style="display: block; margin-top: 5px; color: var(--text-secondary);">Must be valid JSON. Backend uses 'website_monitor' type.</small>
+                         <div style="margin-top: 10px;">
+                            <button type="button" id="preview-sensor-btn" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                                <i class="fas fa-eye"></i> Preview Current Value
+                            </button>
+                            <div id="sensor-preview-area">
+                                <span class="na">Click preview button...</span>
+                            </div>
+                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Schedule Type:</label>
+                        <div class="schedule-options">
+                            <label><input type="radio" name="scheduleType" value="once" checked> Run Once</label>
+                            <label><input type="radio" name="scheduleType" value="daily"> Daily</label>
+                            <label><input type="radio" name="scheduleType" value="weekly"> Weekly</label>
+                            </div>
+                    </div>
+
+                    <div class="schedule-inputs">
+                        <div id="schedule-input-once" class="form-group">
+                            <label for="task-datetime-once">Date & Time:</label>
+                            <input type="datetime-local" id="task-datetime-once" name="dateTimeOnce">
+                        </div>
+                        <div id="schedule-input-daily" class="form-group hidden">
+                            <label for="task-datetime-daily">Time:</label>
+                            <input type="time" id="task-datetime-daily" name="timeDaily">
+                        </div>
+                        <div id="schedule-input-weekly" class="form-group hidden">
+                             <label for="task-day-weekly">Day:</label>
+                             <select id="task-day-weekly" name="dayWeekly">
+                                 <option value="1">Mon</option>
+                                 <option value="2">Tue</option>
+                                 <option value="3">Wed</option>
+                                 <option value="4">Thu</option>
+                                 <option value="5">Fri</option>
+                                 <option value="6">Sat</option>
+                                 <option value="0">Sun</option>
+                             </select>
+                             <label for="task-datetime-weekly" style="margin-left: 1rem;">Time:</label>
+                             <input type="time" id="task-datetime-weekly" name="timeWeekly">
+                        </div>
+                        </div>
+
+                    <div class="cron-preview">
+                        Calculated Crontab: <pre><code id="calculated-crontab"><span class="na">Select schedule...</span></code></pre>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" id="save-task-btn" class="btn btn-primary">Save Task</button>
+                        </div>
+
+                    <div id="task-status"></div> </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        const NODE_API_BASE_URL = '/api/nodes';
+        const TASK_API_BASE_URL = '/api/tasks';
+        const nodesData = {}; 
+        let currentSortKey = 'name'; 
+        let currentSortDirection = 'asc'; 
+
+        function sanitizeHTML(str) {
+            const temp = document.createElement('div');
+            temp.textContent = String(str ?? ''); 
+            return temp.innerHTML;
+        }
+
+        function getNodeValue(node, key, nests = ['user', 'device'], altKey = null) {
+            if (!node) return undefined;
+
+            if (node[key] != null) return node[key];
+
+            if (altKey && node[altKey] != null) return node[altKey];
+
+            for (const n of nests) {
+                if (node[n]?.[key] != null) return node[n][key];
+                if (altKey && node[n]?.[altKey] != null) return node[n][altKey];
+            }
+            return node[key]; 
+        }
+
+        function getNodeName(node) {
+            if (!node) return '?';
+            const longName = getNodeValue(node, 'longName', ['user'], 'long_name');
+            const shortName = getNodeValue(node, 'shortName', ['user'], 'short_name');
+            const nodeId = getNodeValue(node, 'node_id') ?? node.id; 
+            const name = longName || shortName;
+
+            return (name && String(name).trim()) ? String(name).trim() : (nodeId ? `(${nodeId.substring(1)})` : '?');
+        }
+
+        function getInitials(name) {
+             if (!name || typeof name !== 'string' || name === 'N/A' || name.startsWith('(')) return '?';
+             const parts = name.split(/[\s-_]/); 
+             let initials = parts[0]?.[0] ?? '';
+             if (parts.length > 1 && parts[parts.length - 1]?.[0]) {
+                 initials += parts[parts.length - 1][0];
+             }
+             return initials.toUpperCase() || '?'; 
+         }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function createTaskNodeCard(nodeId, node) {
+             const name = getNodeName(node);
+             const initials = getInitials(name);
+             const cleanNodeId = sanitizeHTML(nodeId);
+             const cleanName = sanitizeHTML(name);
+
+             return `<div class="node-card" data-node-id="${cleanNodeId}" data-node-name="${cleanName}" onclick="showTaskModal('${cleanNodeId}')">
+                        <div class="node-avatar">${initials}</div>
+                        <div class="node-info">
+                            <div class="node-name" title="${cleanName}">${cleanName}</div>
+                            <div class="node-id">${cleanNodeId}</div>
+                        </div>
+                    </div>`;
+        }
+
+        function renderNodeGrid() {
+            const grid = document.getElementById('nodes-grid');
+            const input = document.getElementById('node-search');
+            if (!grid) return;
+            const term = input?.value.toLowerCase().trim() ?? '';
+            grid.innerHTML = ''; 
+            const ids = Object.keys(nodesData);
+
+            if (!ids.length) {
+                grid.innerHTML = '<div class="loading-placeholder na" style="grid-column:1/-1">No nodes found.</div>';
+                return;
+            }
+
+            const sortedIds = ids.sort((a, b) => {
+                const nA = nodesData[a];
+                const nB = nodesData[b];
+                let cmp; 
+
+                if (currentSortKey === 'id') {
+
+                    const vA = a.toLowerCase();
+                    const vB = b.toLowerCase();
+                    cmp = vA.localeCompare(vB);
+                } else {
+
+                    const nameA = getNodeName(nA);
+                    const nameB = getNodeName(nB);
+
+                    const isANamed = !(nameA.startsWith('(') || nameA === '?');
+                    const isBNamed = !(nameB.startsWith('(') || nameB === '?');
+
+                    if (isANamed && !isBNamed) {
+                        cmp = -1; 
+                    } else if (!isANamed && isBNamed) {
+                        cmp = 1;  
+                    } else {
+
+                        cmp = nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+                    }
+                }
+                return currentSortDirection === 'desc' ? -cmp : cmp;
+            });
+
+            let found = 0;
+            sortedIds.forEach(id => {
+                const node = nodesData[id];
+                if (!node) return;
+
+                const name = getNodeName(node).toLowerCase();
+                const idL = id.toLowerCase();
+
+                if (!term || name.includes(term) || idL.includes(term)) {
+                    grid.insertAdjacentHTML('beforeend', createTaskNodeCard(id, node));
+                    found++;
+                }
+            });
+
+            if (!found) {
+                 grid.innerHTML = `<div style="grid-column:1/-1" class="loading-placeholder na">No nodes${term ? ' matching "' + sanitizeHTML(term) + '"' : ''}.</div>`;
+            }
+        }
+
+        async function fetchNodes() {
+            const grid = document.getElementById('nodes-grid');
+            if (!grid) return;
+            grid.innerHTML = '<div class="loading-placeholder" style="grid-column:1/-1">Loading nodes...</div>';
+            const statusText = document.getElementById('status-text');
+            const statusIndicator = document.getElementById('status-indicator');
+            if (statusText) statusText.textContent = 'Loading Nodes...';
+            if (statusIndicator) statusIndicator.className = 'status-indicator loading';
+
+            try {
+                const response = await fetch(NODE_API_BASE_URL);
+                if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+                const data = await response.json();
+                Object.keys(nodesData).forEach(key => delete nodesData[key]);
+                for (const id in data) {
+                    if (typeof data[id] === 'object' && data[id] !== null) {
+                        nodesData[id] = { id: id, node_id: id, ...data[id] };
+                    }
+                }
+                renderNodeGrid();
+                if (statusText) statusText.textContent = 'Nodes Loaded';
+                if (statusIndicator) statusIndicator.className = 'status-indicator connected';
+            } catch (error) {
+                console.error("Error fetching nodes:", error);
+                if(grid) grid.innerHTML = `<div class="error-placeholder" style="grid-column:1/-1">Error loading nodes: ${error.message}. Check backend.</div>`;
+                if (statusText) statusText.textContent = 'Node Error';
+                if (statusIndicator) statusIndicator.className = 'status-indicator error';
+            }
+        }
+
+        function renderExistingTaskItem(task) {
+            const node = nodesData[task.nodeId];
+            const nodeName = node ? getNodeName(node) : `(${task.nodeId?.substring(1) ?? '?'})`;
+            const rawNodeId = sanitizeHTML(task.nodeId);
+            const formattedFromName = sanitizeHTML(nodeName);
+            let nodeDisplay = formattedFromName;
+            if (node && formattedFromName !== `(${rawNodeId.substring(1)})`) {
+                 nodeDisplay = `${formattedFromName} (${rawNodeId})`;
+            }
+            const taskId = task.id;
+            if (!taskId) return '';
+            let displayType = 'Unknown', previewContent = '';
+            let payloadRaw = task.actionPayload;
+
+            switch(task.taskType) {
+                case 'message':
+                    displayType = 'Message';
+                    const messageText = (typeof payloadRaw === 'string') ? payloadRaw : JSON.stringify(payloadRaw);
+                    previewContent = `Send: "${sanitizeHTML(messageText).substring(0, 40)}${messageText.length > 40 ? '...' : ''}"`;
+                    break;
+                case 'website_monitor':
+                    displayType = 'Web Sensor';
+                    try {
+                        const payloadObj = typeof payloadRaw === 'string' ? JSON.parse(payloadRaw) : payloadRaw;
+                        const prefix = payloadObj?.prefix ? sanitizeHTML(payloadObj.prefix) : '(No Prefix)';
+                        const url = payloadObj?.url;
+                        const blockId = (typeof payloadObj?.block_id === 'number' || (typeof payloadObj?.block_id === 'string' && !isNaN(parseInt(payloadObj.block_id, 10))))
+                                        ? parseInt(payloadObj.block_id, 10) : null;
+                        if (typeof url === 'string' && url && blockId !== null) {
+                             previewContent = `${prefix} <span class="live-preview-value" data-task-id="${taskId}" data-url="${sanitizeHTML(url)}" data-block-id="${blockId}"><span class="loading">Loading...</span></span>`;
+                        } else {
+                             previewContent = `${prefix} <span class="error">(Invalid config for preview)</span>`;
+                        }
+                    } catch (e) {
+                         previewContent = `<span class="error">(Invalid JSON Config)</span>`;
+                         console.error(`Error parsing JSON for task ${taskId}:`, payloadRaw, e);
+                    }
+                    break;
+                default:
+                    displayType = sanitizeHTML(task.taskType || 'Unknown');
+                    let pc = typeof payloadRaw === 'string' ? payloadRaw : JSON.stringify(payloadRaw);
+                    previewContent = `Action: ${sanitizeHTML(pc).substring(0, 40)}${pc.length > 40 ? '...' : ''}`;
+                    break;
+            }
+
+            return `<div class="task-item" data-task-id="${taskId}">
+                        <div><strong>Node:</strong> ${nodeDisplay}</div>
+                        <div><strong>Type:</strong> ${sanitizeHTML(displayType)}</div>
+                        <div><strong>Schedule:</strong> <code>${sanitizeHTML(task.cronString || 'N/A')}</code></div>
+                        <div><strong>Preview:</strong> ${previewContent}</div>
+                        <div class="task-actions">
+                            <button class="btn btn-secondary" onclick="editTask('${taskId}')"><i class="fas fa-pencil-alt"></i> Edit</button>
+                            <button class="btn delete" onclick="deleteTask('${taskId}')"><i class="fas fa-trash-alt"></i> Delete</button>
+                        </div>
+                    </div>`;
+        }
+
+        async function fetchLivePreview(previewSpan) {
+             if (!previewSpan) return;
+             const url = previewSpan.dataset.url;
+             const blockId = previewSpan.dataset.blockId;
+             const taskId = previewSpan.dataset.taskId;
+             if (typeof url !== 'string' || !url || blockId === undefined || blockId === null || isNaN(parseInt(blockId, 10))) {
+                  previewSpan.innerHTML = `<span class="error">(Config Error)</span>`; return;
+             }
+             try {
+                  const response = await fetch('/extract', {
+                      method: 'POST', headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify({ url: url, block_id: parseInt(blockId, 10), text_only: true })
+                  });
+                  if (!response.ok) {
+                      let eDetail = `HTTP ${response.status}`;
+                      try { eDetail = (await response.json()).detail || eDetail; } catch (_) { try {eDetail = await response.text() || eDetail;} catch (_) {} } throw new Error(eDetail);
+                  }
+                  const extractedText = await response.text();
+                  previewSpan.innerHTML = sanitizeHTML(extractedText);
+             } catch (error) {
+                  console.error(`Preview fetch error for task ${taskId}:`, error);
+                  previewSpan.innerHTML = `<span class="error">(Preview Failed)</span>`;
+             }
+        }
+
+        async function fetchAndDisplayExistingTasks() {
+            const taskListDiv = document.getElementById('existing-tasks-list');
+            if (!taskListDiv) return;
+            taskListDiv.innerHTML = '<div class="loading-placeholder">Loading tasks...</div>';
+            try {
+                const response = await fetch(TASK_API_BASE_URL + '/');
+                if (!response.ok) { let e = `HTTP ${response.status}`; try{e=(await response.json()).detail||e}catch(_){} throw new Error(e); }
+                const tasks = await response.json();
+                taskListDiv.innerHTML = tasks?.length > 0 ? tasks.map(renderExistingTaskItem).join('') : '<div class="loading-placeholder na">No tasks found.</div>';
+                const previewSpans = taskListDiv.querySelectorAll('.live-preview-value');
+                if (previewSpans.length > 0) {
+                    const previewPromises = Array.from(previewSpans).map(span => fetchLivePreview(span));
+                    await Promise.allSettled(previewPromises);
+                }
+            } catch (error) {
+                console.error("Error fetching tasks:", error);
+                taskListDiv.innerHTML = `<div class="error-placeholder">Error loading tasks: ${error.message}.</div>`;
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!confirm(`Delete task ${taskId}?`)) return;
+            try {
+                const r = await fetch(`${TASK_API_BASE_URL}/${taskId}`, { method: 'DELETE' });
+                if (!r.ok) { let e = `HTTP ${r.status}`; try{e=(await r.json()).detail||e}catch(_){} throw new Error(e); }
+                fetchAndDisplayExistingTasks();
+            } catch (e) { alert(`Error deleting: ${e.message}`); }
+        }
+
+        async function editTask(taskId) {
+            try {
+                const r = await fetch(`${TASK_API_BASE_URL}/${taskId}`);
+                if (!r.ok) { let e = `HTTP ${r.status}`; try{e=(await r.json()).detail||e}catch(_){} throw new Error(`Workspace task: ${e}`); }
+                const task = await r.json();
+                if (!nodesData[task.nodeId]) { await fetchNodes(); if (!nodesData[task.nodeId]) throw new Error(`Node ${task.nodeId} missing.`); }
+                showTaskModal(task.nodeId, task);
+            } catch (e) { alert(`Error loading task: ${e.message}`); }
+        }
+
+        const taskModal = document.getElementById('task-setup-modal');
+        const taskNodeIdInput = document.getElementById('task-node-id');
+        const taskEditIdInput = document.getElementById('task-edit-id');
+        const taskNodeInfoDiv = document.getElementById('task-node-info');
+        const taskModalTitle = document.getElementById('task-modal-title');
+        const taskForm = document.getElementById('task-form');
+        const taskStatusDiv = document.getElementById('task-status');
+        const saveTaskBtn = document.getElementById('save-task-btn');
+        const scheduleTypeRadios = document.querySelectorAll('input[name="scheduleType"]');
+        const taskTypeRadios = document.querySelectorAll('input[name="taskType"]');
+        const scheduleInputs = { once: document.getElementById('schedule-input-once'), daily: document.getElementById('schedule-input-daily'), weekly: document.getElementById('schedule-input-weekly') };
+        const taskInputs = { message: document.querySelector('.task-input-message'), website_monitor: document.querySelector('.task-input-website') };
+        const crontabPreview = document.getElementById('calculated-crontab');
+        const onceInput = document.getElementById('task-datetime-once');
+        const dailyInput = document.getElementById('task-datetime-daily');
+        const weeklyDayInput = document.getElementById('task-day-weekly');
+        const weeklyTimeInput = document.getElementById('task-datetime-weekly');
+        const formInputsForCron = [ onceInput, dailyInput, weeklyDayInput, weeklyTimeInput, ...scheduleTypeRadios ];
+        const messageTextarea = document.getElementById('task-message');
+        const websitePayloadTextarea = document.getElementById('task-website-payload');
+
+        function showTaskModal(nodeId, taskData = null) {
+             const node = nodesData[nodeId];
+             if (!node) { alert(`Error: Node data missing for ${nodeId}.`); return; }
+             if (!taskModal || !taskForm) { alert("Error: Modal elements missing."); return; }
+             const nodeName = getNodeName(node);
+             taskForm.reset(); taskStatusDiv.textContent = ''; taskStatusDiv.className = ''; taskEditIdInput.value = ''; taskNodeIdInput.value = nodeId;
+             taskNodeInfoDiv.innerHTML = `Task for Node: <strong>${sanitizeHTML(nodeName)} (${sanitizeHTML(nodeId)})</strong>`;
+             const previewArea = document.getElementById('sensor-preview-area'); if(previewArea) previewArea.innerHTML = '<span class="na">Click preview button...</span>';
+             if (taskData) {
+                 taskModalTitle.textContent = `Edit Task for ${sanitizeHTML(nodeName)}`; saveTaskBtn.textContent = 'Update Task'; taskEditIdInput.value = taskData.id;
+                 const typeRadio = document.querySelector(`input[name="taskType"][value="${taskData.taskType}"]`); if (typeRadio) typeRadio.checked = true; else document.getElementById('task-type-message').checked = true;
+                 if (taskData.taskType === 'message') { messageTextarea.value = taskData.actionPayload || ''; } else if (taskData.taskType === 'website_monitor') { let pStr=''; try{pStr=JSON.stringify( (typeof taskData.actionPayload === 'string' ? JSON.parse(taskData.actionPayload) : taskData.actionPayload), null, 2);}catch(e){pStr=String(taskData.actionPayload || '{}');} websitePayloadTextarea.value = pStr; }
+                 populateScheduleFromCron(taskData.cronString);
+             } else {
+                 taskModalTitle.textContent = `New Task for ${sanitizeHTML(nodeName)}`; saveTaskBtn.textContent = 'Save Task';
+                 document.getElementById('task-type-message').checked = true; document.querySelector('input[name="scheduleType"][value="once"]').checked = true;
+                 onceInput.value = ''; dailyInput.value = ''; weeklyTimeInput.value = ''; weeklyDayInput.value = '1';
+
+                 const now = new Date(); now.setMinutes(now.getMinutes() + 5); now.setSeconds(0); now.setMilliseconds(0);
+                 const year = now.getFullYear(); const month = String(now.getMonth() + 1).padStart(2, '0'); const day = String(now.getDate()).padStart(2, '0');
+                 const hours = String(now.getHours()).padStart(2, '0'); const minutes = String(now.getMinutes()).padStart(2, '0');
+                 onceInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+             }
+             updateTaskInputVisibility(); updateScheduleInputs(); taskModal.classList.add('active');
+             const selectedTaskType = document.querySelector('input[name="taskType"]:checked')?.value; if(selectedTaskType === 'message') messageTextarea?.focus(); else if(selectedTaskType === 'website_monitor') websitePayloadTextarea?.focus();
+         }
+
+        function hideTaskModal() { if(taskModal) taskModal.classList.remove('active'); taskEditIdInput.value = ''; }
+
+        function updateTaskInputVisibility() {
+             const selectedTaskType = document.querySelector('input[name="taskType"]:checked')?.value;
+             Object.values(taskInputs).forEach(div => div?.classList.add('hidden'));
+             if (messageTextarea) messageTextarea.required = false; if (websitePayloadTextarea) websitePayloadTextarea.required = false;
+             if (selectedTaskType && taskInputs[selectedTaskType]) {
+                 taskInputs[selectedTaskType].classList.remove('hidden');
+                 if (selectedTaskType === 'message' && messageTextarea) messageTextarea.required = true;
+                 if (selectedTaskType === 'website_monitor' && websitePayloadTextarea) websitePayloadTextarea.required = true;
+             }
+         }
+
+        function updateScheduleInputs() {
+             const selectedType = document.querySelector('input[name="scheduleType"]:checked')?.value;
+             Object.values(scheduleInputs).forEach(div => div?.classList.add('hidden'));
+             if (onceInput) onceInput.required = false; if (dailyInput) dailyInput.required = false; if (weeklyDayInput) weeklyDayInput.required = false; if (weeklyTimeInput) weeklyTimeInput.required = false;
+             if (selectedType && scheduleInputs[selectedType]) {
+                 scheduleInputs[selectedType].classList.remove('hidden');
+                 if (selectedType === 'once' && onceInput) onceInput.required = true;
+                 if (selectedType === 'daily' && dailyInput) { dailyInput.required = true; if(!dailyInput.value) dailyInput.value = "09:00"; }
+                 if (selectedType === 'weekly') { if (weeklyDayInput) weeklyDayInput.required = true; if (weeklyTimeInput) { weeklyTimeInput.required = true; if(!weeklyTimeInput.value) weeklyTimeInput.value = "09:00"; }}
+             }
+             displayCrontab();
+         }
+
+        function populateScheduleFromCron(cronString) {
+             let defaultType = 'once', defaultOnceValue = '', defaultDailyValue = '09:00', defaultWeeklyDay = '1', defaultWeeklyTime = '09:00';
+             if (!cronString || typeof cronString !== 'string' || cronString.split(' ').length !== 5) { document.querySelector(`input[name="scheduleType"][value="${defaultType}"]`).checked = true; if(onceInput) onceInput.value = defaultOnceValue; if(dailyInput) dailyInput.value = defaultDailyValue; if(weeklyDayInput) weeklyDayInput.value = defaultWeeklyDay; if(weeklyTimeInput) weeklyTimeInput.value = defaultWeeklyTime; return; }
+             const [minute, hour, dayOfMonth, month, dayOfWeek] = cronString.split(' '); let determinedType = defaultType;
+             if (dayOfMonth !== '*' && month !== '*' && dayOfWeek === '*') { determinedType = 'once'; } else if (dayOfMonth === '*' && month === '*' && dayOfWeek !== '*') { determinedType = 'weekly'; } else if (dayOfMonth === '*' && month === '*' && dayOfWeek === '*') { determinedType = 'daily'; } else { if (hour !== '*' && minute !== '*') determinedType = 'daily'; else determinedType = 'once'; }
+             const radio = document.querySelector(`input[name="scheduleType"][value="${determinedType}"]`); if (radio) radio.checked = true; else { document.querySelector(`input[name="scheduleType"][value="${defaultType}"]`).checked = true; determinedType = defaultType; }
+             try { const minuteStr = String(minute).padStart(2, '0'); const hourStr = String(hour).padStart(2, '0'); if (determinedType === 'once') { const now = new Date(); const year = now.getFullYear(); const monthStr = String(month).padStart(2, '0'); const dayOfMonthStr = String(dayOfMonth).padStart(2, '0'); const dateStr = `${year}-${monthStr}-${dayOfMonthStr}T${hourStr}:${minuteStr}`; if (!isNaN(new Date(dateStr).getTime()) && month !== '*' && dayOfMonth !== '*') { if(onceInput) onceInput.value = dateStr; } else { if(onceInput) onceInput.value = defaultOnceValue; } } else if (determinedType === 'weekly') { if(weeklyDayInput && dayOfWeek !== '*' && parseInt(dayOfWeek, 10) >= 0 && parseInt(dayOfWeek, 10) <= 6) { weeklyDayInput.value = dayOfWeek; } else { if(weeklyDayInput) weeklyDayInput.value = defaultWeeklyDay; } if(weeklyTimeInput && hour !== '*' && minute !== '*') { weeklyTimeInput.value = `${hourStr}:${minuteStr}`; } else { if(weeklyTimeInput) weeklyTimeInput.value = defaultWeeklyTime; } } else { if(dailyInput && hour !== '*' && minute !== '*') { dailyInput.value = `${hourStr}:${minuteStr}`; } else { if(dailyInput) dailyInput.value = defaultDailyValue; } } } catch (e) { console.error("Error populating schedule from cron:", e); if (determinedType === 'once' && onceInput) onceInput.value = defaultOnceValue; else if (determinedType === 'weekly') { if(weeklyDayInput) weeklyDayInput.value = defaultWeeklyDay; if(weeklyTimeInput) weeklyTimeInput.value = defaultWeeklyTime; } else if (dailyInput) { dailyInput.value = defaultDailyValue; } }
+         }
+
+        function calculateCrontabString() {
+             const scheduleType = document.querySelector('input[name="scheduleType"]:checked')?.value; let minute = '*', hour = '*', dayOfMonth = '*', month = '*', dayOfWeek = '*'; let isValid = true;
+             try { switch(scheduleType) { case 'once': const onceDateTime = onceInput?.value; if (onceDateTime) { const date = new Date(onceDateTime); if (!isNaN(date.getTime())) { minute = date.getMinutes(); hour = date.getHours(); dayOfMonth = date.getDate(); month = date.getMonth() + 1; dayOfWeek = '*'; } else { isValid = false; } } else { isValid = false; } break; case 'daily': const dailyTime = dailyInput?.value; if (dailyTime) { const [h, m] = dailyTime.split(':'); minute = parseInt(m, 10); hour = parseInt(h, 10); if (isNaN(minute) || isNaN(hour)) isValid = false; dayOfMonth = '*'; month = '*'; dayOfWeek = '*'; } else { isValid = false; } break; case 'weekly': const weeklyTime = weeklyTimeInput?.value; const weeklyDay = weeklyDayInput?.value; if (weeklyTime && weeklyDay !== null && weeklyDay !== "") { const [h, m] = weeklyTime.split(':'); minute = parseInt(m, 10); hour = parseInt(h, 10); dayOfWeek = parseInt(weeklyDay, 10); if (isNaN(minute) || isNaN(hour) || isNaN(dayOfWeek)) isValid = false; dayOfMonth = '*'; month = '*'; } else { isValid = false; } break; default: isValid = false; } } catch (e) { isValid = false; } if (!isValid) return null; return `${minute} ${hour} ${dayOfMonth} ${month} ${dayOfWeek}`;
+         }
+
+        function displayCrontab() {
+             const cronString = calculateCrontabString(); const previewElement = document.getElementById('calculated-crontab'); if (previewElement) { if (cronString) { previewElement.textContent = cronString; previewElement.classList.remove('na'); } else { previewElement.innerHTML = '<span class="na">Requires valid schedule...</span>'; previewElement.classList.add('na'); } }
+         }
+
+        async function previewSensorValue() {
+             const previewArea = document.getElementById('sensor-preview-area'); const payloadTextarea = document.getElementById('task-website-payload'); if (!previewArea || !payloadTextarea) return; previewArea.innerHTML = '<span class="loading-placeholder">Loading preview...</span>'; const payloadString = payloadTextarea.value; let url, block_id; try { const payloadObj = JSON.parse(payloadString); url = payloadObj.url; block_id = payloadObj.block_id; if (typeof url !== 'string' || !url.trim()) throw new Error("'url' missing/invalid."); if (typeof block_id !== 'number' || !Number.isInteger(block_id)) { if (block_id !== 0) throw new Error("'block_id' must be an integer."); } } catch (e) { previewArea.innerHTML = `<span class="error">Invalid JSON: ${sanitizeHTML(e.message)}</span>`; return; } try { const response = await fetch('/extract', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ url: url, block_id: block_id, text_only: true }) }); if (!response.ok) { let eDetail = `HTTP ${response.status}`; try { const errJson = await response.json(); eDetail = errJson.detail || eDetail; } catch (_) { try {eDetail = await response.text() || eDetail;} catch (_) {} } throw new Error(eDetail); } const extractedText = await response.text(); previewArea.innerHTML = `<strong>Current Value:</strong><pre>${sanitizeHTML(extractedText)}</pre>`; } catch (error) { previewArea.innerHTML = `<span class="error">Preview failed: ${sanitizeHTML(error.message)}</span>`; }
+         }
+
+        async function handleTaskFormSubmit(event) {
+            console.log("handleTaskFormSubmit started at:", new Date().toISOString()); 
+            event.preventDefault();
+            if (!taskStatusDiv || !taskNodeIdInput || !taskEditIdInput || !saveTaskBtn) { console.error("Form submit elements missing"); return; }
+
+            const taskId = taskEditIdInput.value;
+            const isEditing = !!taskId;
+            taskStatusDiv.textContent = isEditing ? 'Updating...' : 'Saving...';
+            taskStatusDiv.className = '';
+            saveTaskBtn.disabled = true; 
+
+            const nodeId = taskNodeIdInput.value;
+            const taskType = document.querySelector('input[name="taskType"]:checked')?.value;
+            const cronString = calculateCrontabString();
+            let actionPayload = null;
+            let isValid = true;
+
+            if (!nodeId) { taskStatusDiv.textContent = 'Error: Node ID missing.'; isValid = false; }
+            else if (!cronString) { taskStatusDiv.textContent = 'Error: Invalid schedule.'; isValid = false; }
+            else if (!taskType) { taskStatusDiv.textContent = 'Error: Task Type missing.'; isValid = false; }
+
+            if (isValid) {
+                if (taskType === 'message') {
+                    actionPayload = messageTextarea?.value;
+                    if (!actionPayload?.trim()) { taskStatusDiv.textContent = 'Error: Message empty.'; isValid = false; messageTextarea?.focus(); }
+                } else if (taskType === 'website_monitor') {
+                    actionPayload = websitePayloadTextarea?.value;
+                    if (!actionPayload?.trim()) { taskStatusDiv.textContent = 'Error: Sensor Config empty.'; isValid = false; websitePayloadTextarea?.focus(); }
+                    else { try { const p = JSON.parse(actionPayload); actionPayload = JSON.stringify(p); if(typeof p.url!=='string'||!p.url) throw new Error("URL missing"); if(typeof p.block_id !=='number'||!Number.isInteger(p.block_id)) throw new Error("block_id must be integer"); } catch (e) { taskStatusDiv.textContent = `Error: Sensor Config invalid. ${e.message}`; isValid = false; websitePayloadTextarea?.focus(); } }
+                } else { taskStatusDiv.textContent = 'Error: Invalid task type.'; isValid = false; }
+            }
+
+            if (!isValid) { taskStatusDiv.className = 'error'; saveTaskBtn.disabled = false; return; } 
+
+            const taskData = { nodeId: nodeId, taskType: taskType, actionPayload: actionPayload, cronString: cronString };
+            const url = isEditing ? `${TASK_API_BASE_URL}/${taskId}` : TASK_API_BASE_URL + '/';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(taskData) });
+                if (!response.ok) { let e = `HTTP ${response.status}`; try{e=(await response.json()).detail||e}catch(_){} throw new Error(e); }
+                const resultData = await response.json();
+                taskStatusDiv.textContent = `Task ${isEditing ? 'updated' : 'saved'}! (ID: ${resultData.id})`;
+                taskStatusDiv.className = 'success';
+                fetchAndDisplayExistingTasks(); 
+                setTimeout(hideTaskModal, 1500); 
+            } catch (error) {
+                taskStatusDiv.textContent = `Error: ${error.message}`;
+                taskStatusDiv.className = 'error';
+            } finally {
+                saveTaskBtn.disabled = false; 
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM fully loaded and parsed. Initializing Task Scheduler UI.");
+
+            fetchNodes();
+            fetchAndDisplayExistingTasks();
+
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && taskModal?.classList.contains('active')) hideTaskModal(); });
+
+            scheduleTypeRadios.forEach(r => r.addEventListener('change', updateScheduleInputs));
+
+            taskTypeRadios.forEach(r => r.addEventListener('change', updateTaskInputVisibility));
+
+            formInputsForCron.forEach(i => { if(i) { i.addEventListener('input', displayCrontab); i.addEventListener('change', displayCrontab); }});
+
+            if(taskForm) {
+                taskForm.addEventListener('submit', handleTaskFormSubmit);
+            } else {
+                 console.error("FATAL: Task form element (#task-form) not found!");
+            }
+
+            const searchInput = document.getElementById('node-search');
+            if (searchInput) { const debouncedRender = debounce(renderNodeGrid, 300); searchInput.addEventListener('input', debouncedRender); }
+
+            document.querySelectorAll('#node-sort-buttons .sort-btn').forEach(b => {
+                b.addEventListener('click', (e) => {
+                    const target = e.target.closest('.sort-btn'); if (!target) return; const newKey = target.dataset.sortKey; if (!newKey) return;
+                    if (newKey === currentSortKey) { currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc'; } else { currentSortKey = newKey; currentSortDirection = 'asc'; }
+                    document.querySelectorAll('#node-sort-buttons .sort-btn').forEach(btn => { btn.classList.remove('active'); const icon = btn.querySelector('i.fas'); if (icon) icon.remove(); if (btn.dataset.sortKey === currentSortKey) { btn.classList.add('active'); const iClass = currentSortDirection === 'asc' ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short'; btn.insertAdjacentHTML('beforeend', ` <i class="fas ${iClass}"></i>`); } }); renderNodeGrid();
+                });
+            });
+
+            const previewBtn = document.getElementById('preview-sensor-btn');
+            if (previewBtn) previewBtn.addEventListener('click', previewSensorValue);
+
+        });
+    </script>
+
+    <!-- Update Modal -->
+<div id="md-update-modal">
+    <div class="md-modal-content">
+        <span class="md-modal-close" id="md-modal-close-btn">&times;</span>
+        <h3><i class="fas fa-arrow-circle-up"></i> Update Available</h3>
+        <p>A newer version of the Mesh Dashboard is available!</p>
+        <p>You can download the latest version from:</p>
+        <p style="text-align: center; margin: 15px 0;">
+            <a href="https://meshdash.co.uk/" target="_blank">https:
+        </p>
+        <div class="md-modal-note">
+            <i class="fas fa-info-circle"></i> Please check the documentation for update instructions.
+        </div>
+    </div>
+</div>
+
+<div class="footer-container">
+    <div class="footer-left">
+        <div class="footer-item">
+            <i class="fas fa-cubes"></i>
+            <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+            <strong>Rusjp</strong>
+        </div>
+
+        <div class="footer-divider">|</div>
+
+        <div class="footer-item">
+            <span>Version:</span>
+            <strong id="md-installed-version">Loading...</strong>
+        </div>
+
+        <div id="md-update-container" style="display: none;">
+            <div class="footer-divider">|</div>
+            <div class="footer-item">
+                <i class="fas fa-arrow-circle-up"></i>
+                <span>Update Available:</span>
+                <strong id="md-latest-version"></strong>
+                <button id="md-update-btn">Info</button>
+                 <button class="debug-button" id="debug-button" onclick="toggleDebugPanel()">
+                    <i class="fas fa-bug"></i> Debug
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+
+    const LOCAL_CONFIG_API_URL = '/api/system/config/'; 
+    const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version'; 
+
+    const instVerSpan = document.getElementById('md-installed-version');
+    const updateContainer = document.getElementById('md-update-container');
+    const latestVersionSpan = document.getElementById('md-latest-version');
+    const updateModal = document.getElementById('md-update-modal'); 
+    const updateBtn = document.getElementById('md-update-btn');
+    const modalCloseBtn = document.getElementById('md-modal-close-btn'); 
+
+    async function fetchLocalConfig() {
+        console.debug(`Workspaceing local config from: ${LOCAL_CONFIG_API_URL}`);
+        try {
+            const response = await fetch(LOCAL_CONFIG_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching local config: ${response.status} ${response.statusText}`);
+                let errorBody = 'Could not read error body.';
+                 try { errorBody = await response.text(); } catch(e){}
+                 console.error("Local config error body:", errorBody);
+                return null;
+            }
+            const configData = await response.json();
+            console.debug("Received local config data:", configData);
+            return configData;
+        } catch (error) {
+            console.error('Failed to fetch or parse local configuration:', error);
+            return null;
+        }
+    }
+
+    async function fetchExternalVersion() {
+        console.debug(`Workspaceing latest version from: ${EXTERNAL_VERSION_API_URL}`);
+         try {
+            const response = await fetch(EXTERNAL_VERSION_API_URL);
+             if (!response.ok) {
+                 console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                 let errorBody = 'Could not read error body.';
+                 try { errorBody = await response.text(); } catch(e){}
+                 console.error("External version error body:", errorBody);
+                 return null;
+            }
+            const versionData = await response.json();
+             console.debug("Received external version data:", versionData);
+             return versionData;
+        } catch (error) {
+            console.error('Error fetching or parsing external version:', error);
+             return null;
+        }
+    }
+
+    function compareVersions(v1, v2) {
+        if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+            console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+            return 0;
+        }
+        try {
+            const p1 = v1.substring(1).split('.').map(Number);
+            const p2 = v2.substring(1).split('.').map(Number);
+            if (p1.some(isNaN) || p2.some(isNaN)) {
+                console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                return 0; 
+            }
+            const len = Math.max(p1.length, p2.length);
+            for (let i = 0; i < len; i++) {
+                const n1 = p1[i] || 0; 
+                const n2 = p2[i] || 0;
+                if (n1 < n2) return -1;
+                if (n1 > n2) return 1;
+            }
+            return 0; 
+        } catch (e) {
+            console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+            return 0; 
+        }
+    }
+
+    async function initFooter() {
+
+        if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+            console.error('Footer initialization failed: missing essential display elements (installed version, update container, or latest version).');
+            if (instVerSpan) instVerSpan.textContent = 'Error!';
+            return;
+        }
+         if (updateBtn && (!updateModal || !modalCloseBtn)) {
+            console.warn('Modal elements (md-update-modal, md-modal-close-btn) seem missing. Update info button might not work.');
+        }
+
+        let installedVersion = null;
+
+        const localConfig = await fetchLocalConfig();
+        if (localConfig && localConfig.INSTALLED_VERSION) {
+            installedVersion = localConfig.INSTALLED_VERSION.trim();
+            instVerSpan.textContent = installedVersion; 
+            instVerSpan.style.color = ''; 
+        } else {
+            console.error("Could not retrieve installed version from local config API.");
+            instVerSpan.textContent = 'Error!';
+            instVerSpan.style.color = 'red';
+            return; 
+        }
+
+        const externalData = await fetchExternalVersion();
+        if (externalData && externalData.version && typeof externalData.version === 'string') {
+            const latestAvailableVersion = externalData.version.trim();
+
+            const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+            console.log(`Version Comparison: Installed='${installedVersion}', Latest='${latestAvailableVersion}', Result=${comparisonResult}`);
+
+            if (comparisonResult < 0) {
+
+                console.log("Update available!");
+                latestVersionSpan.textContent = latestAvailableVersion;
+                updateContainer.style.display = 'flex'; 
+
+                 if (updateBtn) updateBtn.style.display = 'inline-block';
+            } else if (comparisonResult === 0) {
+                console.log("Version is up to date.");
+                updateContainer.style.display = 'none'; 
+            } else {
+                console.log("Installed version is newer than external version (or equal/error).");
+                 updateContainer.style.display = 'none'; 
+            }
+        } else {
+            console.warn("Could not retrieve latest version from external API. Update check skipped.");
+
+             updateContainer.style.display = 'none';
+        }
+
+        if (updateBtn && updateModal && modalCloseBtn) {
+             updateBtn.addEventListener('click', () => {
+                updateModal.style.display = 'block';
+            });
+
+            modalCloseBtn.addEventListener('click', () => {
+                updateModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (e) => {
+                if (e.target === updateModal) {
+                    updateModal.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && updateModal.style.display === 'block') {
+                    updateModal.style.display = 'none';
+                }
+            });
+        } else {
+
+             if(updateBtn) updateBtn.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initFooter);
+
+})();
+</script>

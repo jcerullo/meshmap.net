@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Message</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color, #f4f7f9); 
+            color: var(--text-primary, #333);
+        }
+
+        .dm-dashboard {
+            flex-grow: 1;
+            display: flex;
+            box-sizing: border-box;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .dm-container {
+            display: flex;
+            flex-grow: 1;
+            gap: 1rem;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .dm-sidebar {
+            flex: 0 0 350px; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: var(--card-background, #fff);
+            border: 1px solid var(--border-color, #e0e0e0);
+            border-radius: var(--radius-md, 6px);
+        }
+
+        .dm-sidebar .card-header { 
+             padding: 1rem;
+             border-bottom: 1px solid var(--border-color, #eee);
+             flex-shrink: 0;
+        }
+        .dm-sidebar .card-header h2 {
+            font-size: 1.1rem;
+            margin: 0 0 0.75rem 0; 
+        }
+
+        #dm-node-search-container {
+             padding-bottom: 0.5rem; 
+        }
+        #dm-node-search {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: var(--radius-sm, 4px);
+            box-sizing: border-box;
+            font-size: 0.9rem;
+            background-color: var(--input-background, var(--card-background, #fff));
+            color: var(--text-primary, #333);
+        }
+        #dm-node-search:focus {
+            outline: none;
+            border-color: var(--primary-color, #007bff);
+            box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 0, 123, 255), 0.25);
+        }
+
+        #dm-node-sort-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0 0.25rem 0; 
+        }
+        #dm-node-sort-controls label {
+            font-size: 0.8rem;
+            color: var(--text-secondary, #555);
+            flex-shrink: 0; 
+        }
+        #dm-sort-select {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: var(--radius-sm, 4px);
+            background-color: var(--input-background, var(--card-background, #fff));
+            color: var(--text-primary);
+            flex-grow: 1; 
+            max-width: 200px; 
+        }
+
+        #dm-node-list-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color, #ccc) transparent;
+        }
+        #dm-node-list-container::-webkit-scrollbar { width: 6px; }
+        #dm-node-list-container::-webkit-scrollbar-track { background: transparent; }
+        #dm-node-list-container::-webkit-scrollbar-thumb { background-color: var(--border-color, #ccc); border-radius: 3px; }
+        #dm-node-list { list-style: none; padding: 0; margin: 0; }
+
+        #dm-node-list li {
+            display: flex;
+            align-items: flex-start; 
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color, #eee);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            gap: 0.85rem;
+        }
+        #dm-node-list li:last-child { border-bottom: none; }
+        #dm-node-list li:hover { background-color: var(--header-background, #f0f0f0); }
+        #dm-node-list li.active {
+            background-color: rgba(var(--primary-rgb, 79, 135, 255), 0.15);
+            border-left: 4px solid var(--primary-color, #007bff);
+            padding-left: calc(1rem - 4px); 
+        }
+        #dm-node-list li.active .node-name-dm {
+            color: var(--primary-color, #007bff);
+            font-weight: 600;
+        }
+
+        #dm-node-list li .node-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            font-size: 0.9rem; line-height: 36px; text-align: center;
+            color: white; flex-shrink: 0; margin-top: 2px; 
+        }
+        #dm-node-list li .node-info-wrapper {
+            display: flex; flex-direction: column;
+            overflow: hidden; flex-grow: 1; gap: 0.2rem;
+        }
+        #dm-node-list li .node-name-dm {
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-size: 0.9rem; font-weight: 500; color: var(--text-primary, #333);
+            display: flex; align-items: center; margin-bottom: 0.1rem;
+        }
+        .unread-indicator {
+            margin-left: 8px; color: var(--primary-color, #007bff);
+            font-size: 0.8em; display: inline-flex; align-items: center;
+        }
+        .unread-indicator .fa-envelope { animation: pulse 1.5s infinite ease-in-out; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0.7; } }
+
+        .node-extra-info {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.7rem;
+            color: var(--text-secondary, #555);
+            margin-top: 0.15rem;
+            flex-wrap: wrap;
+        }
+        .node-extra-info span { display: inline-flex; align-items: center; gap: 0.25rem; }
+        .node-extra-info .node-role { font-style: italic; }
+        .node-extra-info .node-snr, .node-extra-info .node-rssi { font-weight: 500; }
+        .node-extra-info .batt-icon { width: 1em; }
+
+        .text-muted { color: var(--text-tertiary, #999); }
+        .snr-good, .rssi-good, .batt-good { color: var(--success-color, green); }
+        .snr-ok, .rssi-ok, .batt-ok { color: var(--warning-color, orange); }
+        .snr-bad, .rssi-bad, .batt-low { color: var(--danger-color, red); }
+        .batt-charging { color: var(--info-color, blue); }
+
+        #dm-node-list li .node-last-heard {
+            font-size: 0.7rem; color: var(--text-tertiary, #777);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            margin-top: 0.15rem;
+        }
+
+        #dm-node-list li.placeholder-message,
+        #dm-node-list li.loading-placeholder {
+            justify-content: center; color: var(--text-secondary, #555);
+            cursor: default; font-style: italic; padding: 1rem;
+            align-items: center; 
+        }
+        #dm-node-list li.loading-placeholder i { margin-right: 0.5rem; }
+
+        #dm-chat-card {
+            flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;
+            background-color: var(--card-background, #fff);
+            border: 1px solid var(--border-color, #e0e0e0);
+            border-radius: var(--radius-md, 6px);
+        }
+         #dm-chat-card > .card-header { 
+             padding: 0.75rem 1rem;
+             border-bottom: 1px solid var(--border-color, #eee);
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+         }
+         #dm-chat-card > .card-header h2 { margin: 0; font-size: 1.15rem; }
+
+        #dm-chat-header-extra {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.5rem 1rem 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color, #eee);
+            flex-wrap: wrap; gap: 0.5rem;
+            display: none; 
+        }
+        #dm-chat-node-details-toggle {
+             cursor: pointer; font-size: 0.9em; color: var(--primary-color, #007bff);
+             text-decoration: none; margin-right: auto; 
+        }
+        #dm-chat-node-details-toggle:hover { text-decoration: underline; }
+        #dm-chat-header-actions button { 
+            font-size: 0.75rem; padding: 0.2rem 0.5rem;
+        }
+        #dm-chat-node-details-panel {
+             padding: 0.75rem 1rem; background-color: var(--header-background, #f8f9fa);
+             border-bottom: 1px solid var(--border-color, #eee);
+             font-size: 0.8rem; line-height: 1.5; display: none; 
+        }
+        #dm-chat-node-details-panel.visible { display: block; }
+        #dm-chat-node-details-panel ul { list-style: none; padding: 0; margin: 0; }
+        #dm-chat-node-details-panel li { margin-bottom: 0.3rem; display: flex; }
+        #dm-chat-node-details-panel strong {
+             font-weight: 600; min-width: 80px; flex-shrink: 0;
+             display: inline-block; color: var(--text-secondary); margin-right: 0.5rem;
+        }
+         #dm-chat-node-details-panel span { color: var(--text-primary); }
+         #dm-chat-node-details-panel small { margin-left: 0.5rem; color: var(--text-tertiary); }
+
+        #dm-chat-card > #dm-chat-card-content {
+            flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; padding: 0;
+        }
+        #dm-error-message {
+            padding: 0.5rem 1rem; margin: 0.5rem 1rem; border-radius: var(--radius-sm, 4px);
+            background-color: rgba(255,0,0,0.1); color: var(--danger-color, red);
+            border: 1px solid var(--danger-color, red);
+        }
+        #dm-error-message.hidden { display: none; }
+
+        #dm-message-container {
+            flex-grow: 1; overflow-y: auto; padding: 1rem;
+            background-color: var(--background-color, #f9f9f9);
+            border: 1px solid var(--border-color, #eee);
+            border-radius: var(--radius-sm, 4px); margin: 0.5rem;
+            scrollbar-width: thin; scrollbar-color: var(--border-color, #ccc) transparent;
+        }
+        #dm-message-container::-webkit-scrollbar { width: 8px; }
+        #dm-message-container::-webkit-scrollbar-track { background: transparent; }
+        #dm-message-container::-webkit-scrollbar-thumb { background-color: var(--border-color, #ccc); border-radius: 10px; border: 2px solid var(--background-color, #f9f9f9); }
+        #dm-message-container::-webkit-scrollbar-thumb:hover { background-color: var(--text-tertiary, #777); }
+        .system-message {
+            text-align: center; font-style: italic; color: var(--text-secondary, #555);
+            padding: 0.75rem 0.5rem; font-size: 0.85rem; line-height: 1.4;
+        }
+
+        .message-item { display: flex; margin-bottom: 0.75rem; gap: 0.75rem; }
+        .message-item .node-avatar { width: 36px; height: 36px; border-radius: 50%; font-size: 0.9rem; line-height: 36px; text-align:center; color: white; flex-shrink: 0; }
+        .message-item .message-content { flex-grow: 1; }
+        .message-item .message-header { display: flex; justify-content: space-between; margin-bottom: 0.25rem; align-items: baseline;}
+        .message-item .sender-name { font-weight: 600; font-size:0.9rem; }
+        .message-item .message-time { font-size: 0.7rem; color: var(--text-tertiary, #777); }
+        .message-item .message-text { font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; white-space: pre-wrap; }
+        .message-item .message-meta {
+             font-size: 0.7rem; color: var(--text-tertiary); margin-top: 0.25rem;
+             display:flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+        }
+
+         .message-meta-item {
+             display: inline-flex; align-items: center; gap: 0.25rem;
+             padding: 0.1rem 0.4rem; background-color: rgba(0,0,0, 0.05);
+             border-radius: var(--radius-sm);
+         }
+         .message-meta .view-raw-json { 
+             cursor: pointer; color: var(--primary-color, #007bff);
+             opacity: 0.6; transition: opacity 0.2s; font-size: 0.9em; 
+         }
+         .message-meta .view-raw-json:hover { opacity: 1; }
+
+        .message-item.current-user { flex-direction: row-reverse; }
+        .message-item.current-user .message-content { background-color: #264a6d; padding: 0.5rem 0.75rem; border-radius: var(--radius-md, 6px); }
+        .message-item:not(.current-user) .message-content { background-color: var(--card-background-alt, #1d3733); padding: 0.5rem 0.75rem; border-radius: var(--radius-md, 6px);} 
+
+        #dm-chat-card > .chat-input-area {
+            flex-shrink: 0; padding: 0.75rem 1rem; border-top: 1px solid var(--border-color, #eeeeee);
+            display: flex; align-items: center; background-color: var(--card-background, #fff);
+        }
+        .chat-input-area .input-wrapper { flex-grow: 1; display: flex; align-items: center; margin-right: 0.75rem; position: relative; }
+        #dm-message-input {
+             flex-grow: 1; padding: 0.65rem 0.85rem; border: 1px solid var(--border-color, #ccc);
+             border-radius: var(--radius-sm, 4px); background-color: var(--input-background, var(--card-background, #fff));
+             color: var(--text-primary, #333); font-size: 0.9rem; line-height: 1.4;
+        }
+        #dm-message-input:focus { outline: none; border-color: var(--primary-color, #007bff); box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 0, 123, 255), 0.25); }
+        #dm-message-input:disabled { background-color: var(--disabled-background, #e9ecef); cursor: not-allowed; opacity: 0.7; }
+        #dm-char-count { font-size: 0.75rem; color: var(--text-secondary, #555); margin-left: 0.5rem; white-space: nowrap; }
+        #dm-char-count.warning { color: orange; }
+        #dm-char-count.danger { color: red; font-weight: bold; }
+
+        #dm-send-button .send-text-label { margin-left: 0.5rem; }
+
+        #raw-json-modal {
+            display: none; position: fixed; z-index: 1050;
+            left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.5);
+        }
+        .raw-json-modal-content {
+            background-color: var(--card-background, #fff); margin: 10% auto; padding: 20px;
+            border: 1px solid var(--border-color, #ccc); border-radius: var(--radius-md, 6px);
+            width: 80%; max-width: 800px; position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .raw-json-modal-close {
+            color: var(--text-tertiary, #aaa); position: absolute; top: 10px; right: 15px;
+            font-size: 28px; font-weight: bold; line-height: 1; cursor: pointer;
+        }
+        .raw-json-modal-close:hover, .raw-json-modal-close:focus { color: var(--text-primary, #333); text-decoration: none; }
+        #raw-json-output {
+            background-color: var(--background-color, #f9f9f9); border: 1px solid var(--border-color, #eee);
+            border-radius: var(--radius-sm); padding: 10px; max-height: 60vh; overflow-y: auto;
+            white-space: pre-wrap; word-wrap: break-word; font-family: monospace; font-size: 0.8rem;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="nav-placeholder"></div> <div class="dashboard dm-dashboard">
+        <div class="dm-container">
+            <div class="dm-sidebar card">
+                <div class="card-header">
+                    <h2>Nodes</h2>
+                    <div id="dm-node-search-container">
+                        <input type="text" id="dm-node-search" placeholder="Search nodes...">
+                    </div>
+                    <div id="dm-node-sort-controls">
+                        <label for="dm-sort-select">Sort by:</label>
+                        <select id="dm-sort-select">
+                            <option value="name">Name</option>
+                            <option value="last_heard">Last Heard</option>
+                            <option value="snr">SNR</option>
+                            <option value="rssi">RSSI</option>
+                            <option value="battery_level">Battery</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="dm-node-list-container">
+                    <ul id="dm-node-list">
+                        <li class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading nodes...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="dm-chat-card" class="card">
+                <div class="card-header">
+                    <h2 id="dm-chat-title"><i class="fas fa-user-secret"></i> Select a Node</h2>
+                    <div class="card-header-controls">
+                        <span class="tooltip">
+                            <div class="status-container">
+                                <div id="dm-status-indicator" class="status-indicator disconnected"></div>
+                                <span id="dm-status-text">Initializing...</span>
+                            </div>
+                            <span class="tooltip-text">Connection status</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div id="dm-chat-header-extra">
+                    <a href="#" id="dm-chat-node-details-toggle">Show Details <i class="fas fa-chevron-down"></i></a>
+                    <div id="dm-chat-header-actions">
+                        </div>
+                </div>
+                <div id="dm-chat-node-details-panel">
+                    <ul>
+                        <li><strong>ID:</strong> <span id="details-node-id">N/A</span></li>
+                        <li><strong>HW:</strong> <span id="details-hw-model">N/A</span></li>
+                        <li><strong>FW:</strong> <span id="details-fw-version">N/A</span></li>
+                        <li><strong>Role:</strong> <span id="details-role">N/A</span></li>
+                        <li><strong>Battery:</strong> <span id="details-battery">N/A</span></li>
+                        <li><strong>Voltage:</strong> <span id="details-voltage">N/A</span></li>
+                        <li><strong>Position:</strong> <span id="details-position">N/A</span> <small id="details-pos-time"></small></li>
+                        <li><strong>Telemetry:</strong> <small id="details-telemetry-time">N/A</small></li>
+                    </ul>
+                </div>
+
+                <div id="dm-chat-card-content">
+                    <div id="dm-error-message" class="hidden"></div>
+                    <div id="dm-message-container">
+                        <div class="system-message">Please select a node to start messaging.</div>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <div class="input-wrapper">
+                        <input type="text" id="dm-message-input" placeholder="Type your DM..."
+                                maxlength="230"
+                                disabled>
+                        <span id="dm-char-count">0/230</span>
+                    </div>
+                    <button id="dm-send-button" class="btn btn-primary" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                        <span class="send-text-label">Send</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="raw-json-modal">
+        <div class="raw-json-modal-content">
+            <span class="raw-json-modal-close">&times;</span>
+            <h3>Raw Packet Data</h3>
+            <pre id="raw-json-output"><code></code></pre>
+        </div>
+    </div>
+
+    <script>
+const DmApp = {
+    config: {
+        API_BASE_URL: '/api',
+        SSE_URL: '/sse',
+        MESSAGE_CACHE_SIZE_LIMIT: 200,
+        MAX_MESSAGE_LENGTH: 230,
+        UNKNOWN_USER_ID: 'unknown_user',
+        DEFAULT_NODE_ID_HUE: 180,
+        RETRY_SSE_TIMEOUT: 5000,
+        DM_CHANNEL_INDEX: 0,
+        STATUS_TYPES: { CONNECTED: 'connected', ONLINE: 'online', CONNECTING: 'connecting', DISCONNECTED: 'disconnected', ERROR: 'error', UNKNOWN: 'unknown', INITIALIZING: 'initializing' },
+        SSE_EVENTS: { PACKET: 'packet', CONNECTION_STATUS: 'connection_status', ERROR: 'error', NODES: 'nodes', NODE_UPDATE: 'node_update', LOCAL_NODE_INFO: 'local_node_info' },
+        LAST_SEEN_PREFIX: 'meshtasticDMLastSeen_',
+    },
+    elements: {},
+    state: {
+        currentUserNodeId: null,
+        eventSource: null,
+        allNodes: {},
+        selectedPeerNodeId: null,
+        selectedPeerNodeName: 'Peer',
+        selectedPeerNodeData: null,
+        dmMessageCache: new Set(),
+        localChannelsJson: null,
+        unreadMessages: {},
+        currentSearchTerm: '',
+        currentSortCriteria: 'name',
+        isNodeDetailsVisible: false,
+        displayedPacketDataCache: {},
+        MAX_PACKET_CACHE_SIZE: 100,
+    },
+    settings: {
+        autoScroll: true,
+    },
+
+    init() {
+        this.initElements();
+        this.bindEventListeners();
+        this.ui.loadNavigation(); 
+
+        this.ui.checkSendLabelVisibility();
+        this.ui.clearMessages();
+        this.ui.hideNodeDetailsPanel();
+        this.ui.updateDmChatTitle(null);
+
+        this.ui.updateConnectionStatus(this.config.STATUS_TYPES.INITIALIZING);
+        this.api.fetchCurrentUserNodeId().then(() => {
+            this.api.fetchNodes();
+        });
+        this.sse.connect();
+    },
+
+    initElements() {
+        const ids = [
+
+            'nav-placeholder', 
+
+            'dm-node-list-container', 'dm-node-list', 'dm-node-search', 'dm-sort-select',
+
+            'dm-chat-card', 'dm-chat-title', 'dm-status-indicator', 'dm-status-text',
+
+            'dm-chat-header-extra', 'dm-chat-node-details-toggle', 'dm-chat-header-actions',
+            'dm-chat-node-details-panel',
+
+            'details-node-id', 'details-hw-model', 'details-fw-version', 'details-role',
+            'details-battery', 'details-voltage', 'details-position', 'details-pos-time', 'details-telemetry-time',
+
+            'dm-chat-card-content', 'dm-error-message', 'dm-message-container',
+            'dm-message-input', 'dm-char-count', 'dm-send-button',
+
+            'raw-json-modal', 'raw-json-output',
+        ];
+        ids.forEach(id => {
+            const camelCaseId = id.replace(/-([a-z])/g, g => g[1].toUpperCase());
+            this.elements[camelCaseId] = document.getElementById(id);
+
+            if (!this.elements[camelCaseId] && id !== 'dm-chat-header-actions' && id !== 'footer-placeholder') {
+                console.warn(`Element with ID '${id}' not found during initElements.`);
+            }
+        });
+        this.elements.sendTextLabel = document.querySelector('#dm-send-button .send-text-label');
+        this.elements.rawJsonModalClose = document.querySelector('#raw-json-modal .raw-json-modal-close');
+
+        if (!this.elements.navPlaceholder || !this.elements.dmNodeList || !this.elements.dmMessageContainer || !this.elements.dmChatTitle) {
+            console.error("Essential UI elements (nav, node list, message container, chat title) are missing! Cannot initialize correctly.");
+        }
+    },
+
+    bindEventListeners() {
+
+        if (this.elements.dmSendButton) {
+            this.elements.dmSendButton.addEventListener('click', () => this.api.sendDmMessage());
+        }
+        if (this.elements.dmMessageInput) {
+            this.elements.dmMessageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.api.sendDmMessage();
+                }
+            });
+            this.elements.dmMessageInput.addEventListener('input', () => this.ui.updateCharCount());
+        }
+        if (this.elements.dmNodeList) {
+            this.elements.dmNodeList.addEventListener('click', (e) => {
+                const nodeItem = e.target.closest('li[data-node-id]');
+                if (nodeItem && !nodeItem.classList.contains('placeholder-message') && !nodeItem.classList.contains('loading-placeholder')) {
+                    const nodeId = nodeItem.dataset.nodeId;
+                    const nodeName = nodeItem.dataset.nodeName || 'Unknown Node';
+                    if (nodeId) {
+                        this.handleNodeSelection(nodeId, nodeName);
+                    } else {
+                        console.warn("Clicked node item missing data-node-id attribute.");
+                    }
+                }
+            });
+        }
+        if (this.elements.dmNodeSearch) {
+            this.elements.dmNodeSearch.addEventListener('input', (e) => {
+                this.state.currentSearchTerm = e.target.value.toLowerCase().trim();
+                this.ui.displayNodeList(Object.values(this.state.allNodes));
+            });
+        }
+        if (this.elements.dmSortSelect) {
+            this.elements.dmSortSelect.addEventListener('change', (e) => {
+                this.state.currentSortCriteria = e.target.value;
+                this.ui.displayNodeList(Object.values(this.state.allNodes));
+            });
+        }
+        if (this.elements.dmChatNodeDetailsToggle) {
+            this.elements.dmChatNodeDetailsToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.ui.toggleNodeDetailsPanel();
+            });
+        }
+        if (this.elements.dmMessageContainer) {
+            this.elements.dmMessageContainer.addEventListener('click', (e) => {
+                const viewRawButton = e.target.closest('.view-raw-json');
+                if (viewRawButton) {
+                    const eventId = viewRawButton.dataset.eventId;
+                    if (eventId) {
+                        this.ui.showRawJsonModal(eventId);
+                    } else {
+                        console.warn("View Raw JSON button clicked but missing data-event-id.");
+                    }
+                }
+            });
+        }
+        if (this.elements.rawJsonModalClose) {
+            this.elements.rawJsonModalClose.addEventListener('click', () => this.ui.hideRawJsonModal());
+        }
+        if (this.elements.rawJsonModal) {
+            this.elements.rawJsonModal.addEventListener('click', (e) => {
+                if (e.target === this.elements.rawJsonModal) { this.ui.hideRawJsonModal(); }
+            });
+        }
+        window.addEventListener('resize', () => this.ui.checkSendLabelVisibility());
+    },
+
+    async handleNodeSelection(nodeId, nodeName) {
+
+        if (nodeId === this.state.selectedPeerNodeId || !nodeId) return;
+
+        console.log(`Node selected: ${nodeName} (${nodeId})`);
+        this.state.selectedPeerNodeId = nodeId;
+        this.state.selectedPeerNodeName = nodeName;
+        this.state.selectedPeerNodeData = null;
+        this.ui.hideNodeDetailsPanel();
+        this.ui.clearMessages();
+        this.state.dmMessageCache.clear();
+        this.state.displayedPacketDataCache = {};
+
+        this.ui.updateDmChatTitle(nodeName);
+        this.ui.enableChatInput();
+
+        const fetchDetailsPromise = this.api.fetchNodeDetails(nodeId)
+            .then(details => {
+                this.state.selectedPeerNodeData = details;
+                console.log("Fetched full node details:", details);
+                this.ui.updateNodeDetailsPanel(details);
+            })
+            .catch(error => {
+                console.error(`Failed to fetch full details for node ${nodeId}:`, error);
+                this.ui.updateNodeDetailsPanel(null);
+            });
+
+        if (this.state.unreadMessages[nodeId]) {
+            delete this.state.unreadMessages[nodeId];
+            this.ui.displayNodeList(Object.values(this.state.allNodes));
+        } else {
+            const items = this.elements.dmNodeList.querySelectorAll('li');
+            items.forEach(item => item.classList.remove('active'));
+            const selectedItem = this.elements.dmNodeList.querySelector(`li[data-node-id="${nodeId}"]`);
+            if (selectedItem) selectedItem.classList.add('active');
+        }
+
+        try { localStorage.setItem(DmApp.config.LAST_SEEN_PREFIX + nodeId, (Date.now() / 1000).toString()); }
+        catch (e) { console.warn("Failed to save last seen timestamp:", e); }
+
+        this.elements.dmMessageContainer.appendChild(this.ui.createSystemMessageElement(`Loading message history with ${this.utils.sanitizeText(nodeName)}...`));
+        const fetchHistoryPromise = this.api.fetchDmHistory(this.state.selectedPeerNodeId)
+            .then((historyLoaded) => {
+                const loadingMsg = Array.from(this.elements.dmMessageContainer.querySelectorAll('.system-message'))
+                                        .find(el => el.textContent.includes('Loading message history'));
+                if (loadingMsg) loadingMsg.remove();
+                if (!historyLoaded || this.elements.dmMessageContainer.querySelectorAll('.message-item').length === 0) {
+                    this.elements.dmMessageContainer.appendChild(this.ui.createSystemMessageElement(`No message history with ${this.utils.sanitizeText(nodeName)}. Start the conversation!`));
+                }
+            })
+            .catch(err => {
+                const loadingMsg = Array.from(this.elements.dmMessageContainer.querySelectorAll('.system-message'))
+                                        .find(el => el.textContent.includes('Loading message history'));
+                if (loadingMsg) loadingMsg.remove();
+                this.elements.dmMessageContainer.appendChild(this.ui.createSystemMessageElement(`Error loading history with ${this.utils.sanitizeText(nodeName)}: ${err.message}`));
+            });
+        await Promise.all([fetchDetailsPromise, fetchHistoryPromise]);
+    },
+
+    api: {
+
+        async _fetch(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    let errorData = { detail: `HTTP error! status: ${response.status} ${response.statusText}` };
+                    try { errorData = await response.json(); } catch (e) {  }
+                    const errorMessage = errorData.detail || JSON.stringify(errorData) || `Request failed: ${response.status}`;
+                    throw new Error(errorMessage);
+                }
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    return response.json();
+                }
+                return response.text();
+            } catch (error) {
+                DmApp.ui.showError(`API Error: ${error.message}`);
+                console.error("Fetch error:", error.message, "URL:", url, "Options:", options);
+                throw error;
+            }
+        },
+        async fetchCurrentUserNodeId() {
+            try {
+                const statusData = await this._fetch(`${DmApp.config.API_BASE_URL}/status`);
+                if (statusData && statusData.local_node_info && statusData.local_node_info.node_id) {
+                    DmApp.state.currentUserNodeId = DmApp.utils.normalizeNodeId(statusData.local_node_info.node_id);
+                    if (statusData.local_node_info.channels_json) {
+                        try {
+                            DmApp.state.localChannelsJson = JSON.parse(statusData.local_node_info.channels_json);
+                            console.log("Parsed local channels from status endpoint:", DmApp.state.localChannelsJson);
+                        } catch (e) { console.error("Error parsing channels_json from status:", e); }
+                    }
+                } else {
+                    DmApp.state.currentUserNodeId = DmApp.config.UNKNOWN_USER_ID;
+                    console.warn("Could not determine current user node ID from status.");
+                }
+            } catch (error) {
+                console.error("Error fetching current user node ID:", error);
+                DmApp.state.currentUserNodeId = DmApp.config.UNKNOWN_USER_ID;
+            }
+        },
+        async fetchNodes() {
+            try {
+                const nodesData = await this._fetch(`${DmApp.config.API_BASE_URL}/nodes`);
+                const newAllNodes = {};
+                for (const nodeId in nodesData) {
+                    if (Object.prototype.hasOwnProperty.call(nodesData, nodeId)) {
+                        const normalizedId = DmApp.utils.normalizeNodeId(nodeId);
+                        nodesData[nodeId].node_id = normalizedId;
+                        newAllNodes[normalizedId] = nodesData[nodeId];
+                    }
+                }
+                DmApp.state.allNodes = newAllNodes;
+                DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+            } catch (error) {
+                console.error("Error fetching nodes:", error);
+                if (DmApp.elements.dmNodeList) {
+                    DmApp.elements.dmNodeList.innerHTML = '<li class="placeholder-message">Error loading nodes.</li>';
+                }
+            }
+        },
+        async fetchNodeDetails(nodeId) {
+            if (!nodeId) throw new Error("Node ID is required to fetch details.");
+            try {
+                const nodeDetails = await this._fetch(`${DmApp.config.API_BASE_URL}/nodes/${nodeId}`);
+                return nodeDetails;
+            } catch (error) {
+                console.error(`Error fetching details for node ${nodeId}:`, error);
+                throw error;
+            }
+        },
+        async fetchDmHistory(peerNodeIdToFetch) {
+            const currentUserNId = DmApp.state.currentUserNodeId;
+            if (!currentUserNId || !peerNodeIdToFetch || currentUserNId === DmApp.config.UNKNOWN_USER_ID) {
+                console.warn("Cannot fetch DM history: missing IDs.");
+                return false;
+            }
+            const historyLimit = String(DmApp.config.MESSAGE_CACHE_SIZE_LIMIT * 2);
+
+            const params1 = new URLSearchParams({ from_id: currentUserNId, to_id: peerNodeIdToFetch, limit: historyLimit }).toString();
+            const params2 = new URLSearchParams({ from_id: peerNodeIdToFetch, to_id: currentUserNId, limit: historyLimit }).toString();
+
+            try {
+                const [history1Results, history2Results] = await Promise.all([
+                    this._fetch(`${DmApp.config.API_BASE_URL}/messages/history?${params1}`),
+                    this._fetch(`${DmApp.config.API_BASE_URL}/messages/history?${params2}`)
+                ]);
+                const history1 = Array.isArray(history1Results) ? history1Results : [];
+                const history2 = Array.isArray(history2Results) ? history2Results : [];
+
+                const messageMap = new Map();
+                [...history1, ...history2].forEach(msg => {
+                    const key = msg.packet_event_id || `${msg.timestamp}-${msg.from_id}-${msg.text?.slice(0, 10)}`;
+                    if (!messageMap.has(key)) {
+                        messageMap.set(key, msg);
+                    }
+                });
+
+                const combinedHistory = Array.from(messageMap.values())
+                    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+                DmApp.ui.clearMessages();
+                const displayLimit = DmApp.config.MESSAGE_CACHE_SIZE_LIMIT;
+                const historyToDisplay = combinedHistory.slice(-displayLimit);
+                historyToDisplay.forEach(msg => DmApp.ui.displayDmMessage(msg, true));
+
+                return historyToDisplay.length > 0;
+            } catch (error) {
+                console.error(`Error fetching DM history with ${peerNodeIdToFetch}:`, error);
+                DmApp.ui.clearMessages();
+                DmApp.elements.dmMessageContainer.appendChild(DmApp.ui.createSystemMessageElement(`Error loading history: ${error.message}`));
+                return false;
+            }
+        },
+        async sendDmMessage() {
+            const messageText = DmApp.elements.dmMessageInput.value.trim();
+            const destinationNodeId = DmApp.state.selectedPeerNodeId;
+            if (!messageText || !destinationNodeId || DmApp.elements.dmSendButton.disabled) return;
+
+            if (messageText.length > DmApp.config.MAX_MESSAGE_LENGTH) {
+                DmApp.ui.showError(`Message too long (max ${DmApp.config.MAX_MESSAGE_LENGTH} chars).`);
+                return;
+            }
+            const originalButtonContent = DmApp.elements.dmSendButton.innerHTML;
+            DmApp.elements.dmSendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            DmApp.ui.disableChatInputTemporarily();
+
+            try {
+                await this._fetch(`${DmApp.config.API_BASE_URL}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: messageText,
+                        destination: destinationNodeId,
+                        channel: DmApp.config.DM_CHANNEL_INDEX
+                    }),
+                });
+
+                const tempMsgData = {
+                    from_id: DmApp.state.currentUserNodeId,
+                    to_id: destinationNodeId,
+                    text: messageText,
+                    timestamp: Date.now() / 1000,
+                };
+                DmApp.ui.displayDmMessage(tempMsgData, false);
+                DmApp.elements.dmMessageInput.value = '';
+                DmApp.ui.updateCharCount();
+                DmApp.ui.clearError();
+            } catch (error) {
+                DmApp.ui.showError(`Send failed: ${error.message}`);
+            } finally {
+                DmApp.elements.dmSendButton.innerHTML = originalButtonContent;
+                DmApp.ui.enableChatInput();
+            }
+        }
+    },
+
+    ui: {
+        loadNavigation() {
+            fetch('/static/top_nav.html')
+                .then(r => r.ok ? r.text() : Promise.reject(new Error(`Failed to load navigation: ${r.status} ${r.statusText}`)))
+                .then(d => {
+                    if (DmApp.elements.navPlaceholder) {
+                        DmApp.elements.navPlaceholder.innerHTML = d;
+                    } else {
+                        console.warn("Navigation placeholder not found.");
+                    }
+                })
+                .catch(e => console.error('Nav load error', e));
+        },
+
+        displayNodeList(nodes) {
+
+            const listElement = DmApp.elements.dmNodeList;
+            if (!listElement) return;
+            listElement.innerHTML = '';
+
+            const searchTerm = DmApp.state.currentSearchTerm;
+            const currentSort = DmApp.state.currentSortCriteria;
+
+            let filteredNodes = nodes.filter(node => {
+                if (!node || !node.node_id) return false;
+                if (node.node_id === DmApp.state.currentUserNodeId) return false;
+                const nodeName = DmApp.utils.getNodeName(node).toLowerCase();
+                const nodeId = node.node_id.toLowerCase();
+                const hwModel = (node.hw_model || "").toLowerCase();
+                const role = (node.role || "").toLowerCase();
+                return nodeName.includes(searchTerm) || nodeId.includes(searchTerm) || hwModel.includes(searchTerm) || role.includes(searchTerm);
+            });
+
+            filteredNodes.sort((a, b) => {
+                const isUnreadA = !!DmApp.state.unreadMessages[a.node_id];
+                const isUnreadB = !!DmApp.state.unreadMessages[b.node_id];
+
+                if (isUnreadA !== isUnreadB) return isUnreadA ? -1 : 1;
+
+                let compareResult = 0;
+                switch(currentSort) {
+                    case 'last_heard': compareResult = (b.last_heard || 0) - (a.last_heard || 0); break;
+                    case 'snr': compareResult = (b.snr ?? -Infinity) - (a.snr ?? -Infinity); break;
+                    case 'rssi': compareResult = (b.rssi ?? -Infinity) - (a.rssi ?? -Infinity); break;
+                    case 'battery_level': compareResult = (b.battery_level ?? -1) - (a.battery_level ?? -1); break;
+                    default: compareResult = 0;
+                }
+
+                if (compareResult === 0) {
+                    const nameA = DmApp.utils.getNodeName(a) || '';
+                    const nameB = DmApp.utils.getNodeName(b) || '';
+                    const isIdA = nameA.startsWith('!');
+                    const isIdB = nameB.startsWith('!');
+                    if (isIdA !== isIdB) return isIdA ? 1 : -1;
+                    return nameA.localeCompare(nameB);
+                }
+                return compareResult;
+            });
+
+            if (filteredNodes.length === 0) {
+                let message = "No other nodes found.";
+                if (searchTerm) message = "No nodes match your search.";
+                else if (Object.keys(DmApp.state.allNodes).filter(id => id !== DmApp.state.currentUserNodeId).length === 0) {
+                    message = "No other nodes available to message.";
+                }
+                const li = document.createElement('li'); li.className = 'placeholder-message'; li.textContent = message; listElement.appendChild(li); return;
+            }
+
+            filteredNodes.forEach(node => {
+                const li = document.createElement('li');
+                li.dataset.nodeId = node.node_id;
+                const nodeName = DmApp.utils.getNodeName(node);
+                li.dataset.nodeName = nodeName;
+
+                if (node.node_id === DmApp.state.selectedPeerNodeId) { li.classList.add('active'); }
+
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = 'node-avatar';
+                avatarDiv.style.backgroundColor = DmApp.utils.getNodeAccentColor(node.node_id);
+                avatarDiv.textContent = DmApp.utils.getNodeInitials(node.node_id);
+                li.appendChild(avatarDiv);
+
+                const infoWrapper = document.createElement('div');
+                infoWrapper.className = 'node-info-wrapper';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'node-name-dm';
+                nameSpan.textContent = nodeName;
+                if (DmApp.state.unreadMessages[node.node_id]) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'unread-indicator';
+                    indicator.innerHTML = '<i class="fas fa-envelope"></i>';
+                    nameSpan.appendChild(indicator);
+                }
+                infoWrapper.appendChild(nameSpan);
+
+                const extraInfoDiv = document.createElement('div');
+                extraInfoDiv.className = 'node-extra-info';
+                extraInfoDiv.innerHTML += DmApp.utils.formatBatteryLevel(node.battery_level);
+                extraInfoDiv.innerHTML += DmApp.utils.formatSnr(node.snr);
+                if (node.hw_model) { extraInfoDiv.innerHTML += DmApp.utils.formatHwModel(node.hw_model); }
+                if (node.role) { extraInfoDiv.innerHTML += DmApp.utils.formatRole(node.role); }
+                infoWrapper.appendChild(extraInfoDiv);
+
+                const lastHeardSpan = document.createElement('small');
+                lastHeardSpan.className = 'node-last-heard';
+                lastHeardSpan.textContent = node.last_heard ? `Heard: ${DmApp.utils.formatTime(node.last_heard)}` : 'Heard: Never';
+                if (!node.last_heard) lastHeardSpan.classList.add('text-muted');
+                infoWrapper.appendChild(lastHeardSpan);
+
+                li.appendChild(infoWrapper);
+                listElement.appendChild(li);
+            });
+        },
+        setNodeUnreadIndicator(nodeId, show) {
+
+            const nodeItem = DmApp.elements.dmNodeList?.querySelector(`li[data-node-id="${nodeId}"]`);
+            if (nodeItem) {
+                const nameSpan = nodeItem.querySelector('.node-name-dm');
+                if (!nameSpan) return;
+                let indicator = nameSpan.querySelector('.unread-indicator');
+                if (show && !indicator) {
+                    indicator = document.createElement('span'); indicator.className = 'unread-indicator';
+                    indicator.innerHTML = '<i class="fas fa-envelope"></i>'; nameSpan.appendChild(indicator);
+                } else if (!show && indicator) { indicator.remove(); }
+            }
+        },
+        updateDmChatTitle(peerNodeName) {
+
+            const titleElement = DmApp.elements.dmChatTitle;
+            const extraHeader = DmApp.elements.dmChatHeaderExtra;
+            if (!titleElement || !extraHeader) return;
+
+            if (peerNodeName) {
+                titleElement.innerHTML = `<i class="fas fa-user"></i> ${DmApp.utils.sanitizeText(peerNodeName)}`;
+                extraHeader.style.display = 'flex';
+            } else {
+                titleElement.innerHTML = `<i class="fas fa-user-secret"></i> Select a Node`;
+                extraHeader.style.display = 'none';
+                this.hideNodeDetailsPanel();
+            }
+        },
+        toggleNodeDetailsPanel() {
+
+            DmApp.state.isNodeDetailsVisible = !DmApp.state.isNodeDetailsVisible;
+            const panel = DmApp.elements.dmChatNodeDetailsPanel;
+            const toggle = DmApp.elements.dmChatNodeDetailsToggle;
+            if (!panel || !toggle) return;
+
+            if (DmApp.state.isNodeDetailsVisible) {
+                panel.classList.add('visible');
+                toggle.innerHTML = 'Hide Details <i class="fas fa-chevron-up"></i>';
+                this.updateNodeDetailsPanel(DmApp.state.selectedPeerNodeData);
+            } else {
+                panel.classList.remove('visible');
+                toggle.innerHTML = 'Show Details <i class="fas fa-chevron-down"></i>';
+            }
+        },
+        updateNodeDetailsPanel(nodeData) {
+
+            const panel = DmApp.elements.dmChatNodeDetailsPanel;
+            if (!panel) return;
+
+            const updateField = (id, value, formatter) => {
+                const el = panel.querySelector(`#${id}`);
+                if (el) {
+                    el.innerHTML = (value !== null && value !== undefined)
+                        ? (formatter ? formatter(value) : DmApp.utils.sanitizeText(String(value)))
+                        : 'N/A';
+                } else {
+                    console.warn(`Details panel element not found: #${id}`);
+                }
+            };
+            const updateTimeField = (id, time) => {
+                const el = panel.querySelector(`#${id}`);
+                if (el) el.textContent = time ? `(${DmApp.utils.formatTime(time)})` : '';
+            };
+
+            if (!nodeData) {
+                updateField('details-node-id', DmApp.state.selectedPeerNodeId);
+                updateField('details-hw-model', 'N/A');
+                updateField('details-fw-version', 'N/A');
+                updateField('details-role', 'N/A');
+                updateField('details-battery', 'N/A');
+                updateField('details-voltage', 'N/A');
+                updateField('details-position', 'N/A');
+                updateTimeField('details-pos-time', null);
+                updateField('details-telemetry-time', 'N/A');
+                return;
+            }
+
+            updateField('details-node-id', nodeData.node_id);
+            updateField('details-hw-model', nodeData.hw_model);
+            updateField('details-fw-version', nodeData.firmware_version);
+            updateField('details-role', nodeData.role, DmApp.utils.formatRole);
+            updateField('details-battery', nodeData.battery_level, DmApp.utils.formatBatteryLevel);
+            updateField('details-voltage', nodeData.voltage, val => `${Number(val).toFixed(2)}V`);
+
+            let posText = 'N/A';
+            if (nodeData.latitude !== null && nodeData.longitude !== null && nodeData.latitude !== undefined && nodeData.longitude !== undefined) {
+                posText = `${Number(nodeData.latitude).toFixed(5)}, ${Number(nodeData.longitude).toFixed(5)}`;
+                if (nodeData.altitude !== null && nodeData.altitude !== undefined) posText += ` (${nodeData.altitude}m)`;
+            }
+            updateField('details-position', posText);
+            updateTimeField('details-pos-time', nodeData.position_time);
+            updateField('details-telemetry-time', nodeData.telemetry_time, DmApp.utils.formatTime);
+        },
+        hideNodeDetailsPanel() {
+
+            DmApp.state.isNodeDetailsVisible = false;
+            if (DmApp.elements.dmChatNodeDetailsPanel) DmApp.elements.dmChatNodeDetailsPanel.classList.remove('visible');
+            if (DmApp.elements.dmChatNodeDetailsToggle) DmApp.elements.dmChatNodeDetailsToggle.innerHTML = 'Show Details <i class="fas fa-chevron-down"></i>';
+        },
+        clearMessages() {
+
+            if (DmApp.elements.dmMessageContainer) DmApp.elements.dmMessageContainer.innerHTML = '';
+            DmApp.state.displayedPacketDataCache = {};
+        },
+        createSystemMessageElement(text) {
+
+            const div = document.createElement('div'); div.className = 'system-message'; div.textContent = text; return div;
+        },
+        displaySystemMessage(text) {
+
+            if (DmApp.elements.dmMessageContainer) {
+                DmApp.elements.dmMessageContainer.appendChild(this.createSystemMessageElement(text)); this.scrollToBottom();
+            }
+        },
+        scrollToBottom() {
+
+            const mc = DmApp.elements.dmMessageContainer;
+            if (mc) mc.scrollTop = mc.scrollHeight;
+        },
+        displayDmMessage(messageData, isHistory = false) {
+
+            const packet = messageData;
+
+            let senderIdRaw = packet.from_id ?? packet.fromId ?? packet.decoded?.from ?? packet.from;
+            let recipientIdRaw = packet.to_id ?? packet.toId ?? packet.decoded?.to ?? packet.to;
+            if (packet.decoded?.wantAck && packet.decoded?.destination && !recipientIdRaw) {
+                recipientIdRaw = packet.decoded.destination;
+            }
+
+            const senderId = DmApp.utils.normalizeNodeId(senderIdRaw);
+            const recipientId = DmApp.utils.normalizeNodeId(recipientIdRaw);
+            const eventId = packet.packet_event_id || packet.event_id || packet.id || `msg-${packet.timestamp}-${Math.random().toString(16).slice(2)}`;
+
+            let text = packet.text;
+            if (text === undefined || text === null) {
+                text = DmApp.utils.extractTextFromPayload(packet.decoded?.payload ?? packet.decoded?.text ?? packet.payload);
+            }
+            const portnum = packet.portnum ?? packet.decoded?.portnum;
+            if (!text && portnum) {
+                const portStr = String(portnum).toUpperCase();
+                if (portStr === 'POSITION_APP') text = '[Position Update]';
+                else if (portStr === 'NODEINFO_APP') text = '[Node Info]';
+                else if (portStr === 'TELEMETRY_APP') text = '[Telemetry]';
+                else if (portStr === 'ROUTING_APP') text = '[Routing Packet]';
+                else if (portStr === 'WAYPOINT_APP') text = '[Waypoint]';
+                else if (portStr !== 'TEXT_MESSAGE_APP' && portStr !== 'UNKNOWN_APP') text = `[${portStr}]`;
+                else if (portStr === 'UNKNOWN_APP') text = '[Data Packet]';
+            }
+
+            if (!senderId && !isHistory) { console.warn("DM display: No senderId for live message.", packet); return; }
+            if (!text && !isHistory && !(senderId === DmApp.state.currentUserNodeId)) {
+                console.warn("DM display: Empty live text from peer, not displaying.", packet); return;
+            }
+
+            const displayTimestamp = packet.timestamp || packet.rxTime || packet.rx_time || (Date.now() / 1000);
+            const finalMsgKey = `${eventId}`;
+
+            if (DmApp.state.dmMessageCache.has(finalMsgKey) && !isHistory) { return; }
+            DmApp.state.dmMessageCache.add(finalMsgKey);
+            while (DmApp.state.dmMessageCache.size > DmApp.config.MESSAGE_CACHE_SIZE_LIMIT * 1.5) {
+                DmApp.state.dmMessageCache.delete(DmApp.state.dmMessageCache.values().next().value);
+            }
+
+            if (eventId) {
+                DmApp.state.displayedPacketDataCache[eventId] = packet;
+                const keys = Object.keys(DmApp.state.displayedPacketDataCache);
+                if (keys.length > DmApp.state.MAX_PACKET_CACHE_SIZE) {
+                    delete DmApp.state.displayedPacketDataCache[keys[0]];
+                }
+            }
+
+            const isFromCurrentUser = (senderId === DmApp.state.currentUserNodeId);
+            const nodeInfo = DmApp.state.allNodes[senderId] || { node_id: senderId };
+            const senderName = DmApp.utils.getNodeName(nodeInfo);
+            const senderInitials = DmApp.utils.getNodeInitials(senderId);
+            const accentColor = DmApp.utils.getNodeAccentColor(senderId);
+            const timeStr = DmApp.utils.formatTime(displayTimestamp);
+            const sanitizedMessageText = DmApp.utils.sanitizeText(text || "");
+
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message-item' + (isFromCurrentUser ? ' current-user' : '') + (isHistory ? ' historical-message' : '');
+            messageElement.dataset.senderId = senderId;
+            messageElement.id = `dm-msg-${eventId}`;
+
+            let metaItemsHTML = '';
+            const displayChannel = packet.channel;
+            const hopLimit = packet.hopLimit ?? packet.hop_limit;
+            const rxSnr = packet.rx_snr ?? packet.rxSnr;
+            const rxRssi = packet.rx_rssi ?? packet.rxRssi;
+
+            if (displayChannel !== undefined && displayChannel !== null) {
+                const channelName = DmApp.utils.getChannelName(displayChannel);
+                const channelTitle = channelName ? ` title="${DmApp.utils.sanitizeText(channelName)}"` : '';
+                metaItemsHTML += `<div class="message-meta-item"${channelTitle}><i class="fas fa-broadcast-tower"></i> Ch ${displayChannel}</div>`;
+            }
+            if (hopLimit !== undefined && hopLimit !== null) {
+                metaItemsHTML += `<div class="message-meta-item" title="Hop Limit"><i class="fas fa-route"></i> Hops ${hopLimit}</div>`;
+            }
+            if (rxSnr !== undefined && rxSnr !== null) {
+                metaItemsHTML += `<div class="message-meta-item ${DmApp.utils.getSnrClass(rxSnr)}" title="Signal-to-Noise Ratio">SNR ${Number(rxSnr).toFixed(1)}dB</div>`;
+            }
+            if (rxRssi !== undefined && rxRssi !== null) {
+                metaItemsHTML += `<div class="message-meta-item ${DmApp.utils.getRssiClass(rxRssi)}" title="Received Signal Strength">RSSI ${rxRssi}dBm</div>`;
+            }
+            if (eventId) {
+                metaItemsHTML += `<i class="fas fa-code view-raw-json" title="View Raw Packet Data" data-event-id="${eventId}"></i>`;
+            }
+
+            messageElement.innerHTML = `
+                <div class="node-avatar" style="background-color: ${accentColor};" title="${DmApp.utils.sanitizeText(senderName)} (${DmApp.utils.sanitizeText(senderId)})">${senderInitials}</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="sender-name" style="${!isFromCurrentUser ? 'color:'+accentColor : ''}">${DmApp.utils.sanitizeText(senderName)}</span>
+                        <span class="message-time">${timeStr}</span>
+                    </div>
+                    <div class="message-text">${sanitizedMessageText.replace(/\n/g, '<br>')}</div>
+                    ${metaItemsHTML ? `<div class="message-meta">${metaItemsHTML}</div>` : ''}
+                </div>`;
+
+            if(DmApp.elements.dmMessageContainer) {
+                DmApp.elements.dmMessageContainer.appendChild(messageElement);
+                const mc = DmApp.elements.dmMessageContainer;
+                const isNearBottom = mc.scrollHeight - mc.clientHeight <= mc.scrollTop + 150;
+                if (DmApp.settings.autoScroll && (isNearBottom || isFromCurrentUser)) {
+                    requestAnimationFrame(() => this.scrollToBottom());
+                }
+            } else {
+                console.error("Message container not found, cannot display message.");
+            }
+        },
+        updateCharCount() {
+
+            const input = DmApp.elements.dmMessageInput;
+            const countSpan = DmApp.elements.dmCharCount;
+            if (!input || !countSpan) return;
+            const currentLength = input.value.length;
+            const maxLength = DmApp.config.MAX_MESSAGE_LENGTH;
+            countSpan.textContent = `${currentLength}/${maxLength}`;
+
+            countSpan.classList.remove('warning', 'danger');
+            if (currentLength > maxLength) {
+                countSpan.classList.add('danger');
+                if(DmApp.elements.dmSendButton) DmApp.elements.dmSendButton.disabled = true;
+            } else if (currentLength > maxLength * 0.9) {
+                countSpan.classList.add('warning');
+                if(DmApp.elements.dmSendButton) DmApp.elements.dmSendButton.disabled = !DmApp.state.selectedPeerNodeId || currentLength === 0;
+            } else {
+                if(DmApp.elements.dmSendButton) DmApp.elements.dmSendButton.disabled = !DmApp.state.selectedPeerNodeId || currentLength === 0;
+            }
+        },
+        checkSendLabelVisibility() {
+
+            const button = DmApp.elements.dmSendButton;
+            const label = DmApp.elements.sendTextLabel;
+            if (button && label) {
+                label.style.display = button.offsetWidth > 60 ? 'inline' : 'none';
+            }
+        },
+        disableChatInputTemporarily(){
+
+            if(DmApp.elements.dmMessageInput) DmApp.elements.dmMessageInput.disabled = true;
+            if(DmApp.elements.dmSendButton) DmApp.elements.dmSendButton.disabled = true;
+        },
+        enableChatInput() {
+
+            if(DmApp.elements.dmMessageInput) DmApp.elements.dmMessageInput.disabled = !DmApp.state.selectedPeerNodeId;
+            this.updateCharCount();
+        },
+        showError(message) {
+
+            const errorDiv = DmApp.elements.dmErrorMessage;
+            if (errorDiv) {
+                errorDiv.textContent = message;
+                errorDiv.classList.remove('hidden');
+            }
+        },
+        clearError() {
+
+            const errorDiv = DmApp.elements.dmErrorMessage;
+            if (errorDiv) {
+                errorDiv.textContent = '';
+                errorDiv.classList.add('hidden');
+            }
+        },
+        updateConnectionStatus(statusInfo, error = null) {
+
+            const indicator = DmApp.elements.dmStatusIndicator;
+            const text = DmApp.elements.dmStatusText;
+            if (!indicator || !text) return;
+
+            const statusClass = statusInfo?.status || statusInfo || DmApp.config.STATUS_TYPES.UNKNOWN;
+            let statusText = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+
+            indicator.className = 'status-indicator';
+            indicator.classList.add(statusClass);
+
+            if (statusClass === DmApp.config.STATUS_TYPES.ERROR && error) {
+                statusText = `Error: ${error}`;
+                text.title = error;
+            } else if (statusInfo?.message) {
+                statusText = statusInfo.message;
+                text.title = statusInfo.message;
+            } else {
+                text.title = '';
+            }
+            text.textContent = statusText;
+        },
+        showRawJsonModal(eventId) {
+
+            const packetData = DmApp.state.displayedPacketDataCache[eventId];
+            const modal = DmApp.elements.rawJsonModal;
+            const outputElement = DmApp.elements.rawJsonOutput;
+            if (packetData && modal && outputElement) {
+                try {
+                    const serializablePacket = DmApp.utils.ensureSerializable(packetData);
+                    outputElement.textContent = JSON.stringify(serializablePacket, null, 2);
+                } catch (e) {
+                    console.error("Error stringifying packet data for modal:", e);
+                    outputElement.textContent = `Error displaying data: ${e.message}\n\nOriginal Data:\n${JSON.stringify(packetData, null, 2)}`;
+                }
+                modal.style.display = "block";
+            } else {
+                console.warn(`Could not find packet data for event ID ${eventId} to show raw JSON.`);
+                alert("Could not retrieve raw data for this message.");
+            }
+        },
+        hideRawJsonModal() {
+
+            const modal = DmApp.elements.rawJsonModal;
+            if (modal) modal.style.display = "none";
+            const outputElement = DmApp.elements.rawJsonOutput;
+            if (outputElement) outputElement.textContent = '';
+        },
+    },
+
+    sse: {
+
+        connect() {
+            if (DmApp.state.eventSource) {
+                DmApp.state.eventSource.close();
+            }
+            try {
+                DmApp.state.eventSource = new EventSource(DmApp.config.SSE_URL);
+                DmApp.ui.updateConnectionStatus(DmApp.config.STATUS_TYPES.CONNECTING);
+
+                DmApp.state.eventSource.onopen = () => {
+                    console.log("SSE connection opened.");
+                    DmApp.ui.clearError();
+                };
+                DmApp.state.eventSource.onerror = (err) => {
+                    console.error("SSE connection error:", err);
+                    DmApp.ui.updateConnectionStatus(DmApp.config.STATUS_TYPES.ERROR, "SSE connection failed");
+                    if (DmApp.state.eventSource) DmApp.state.eventSource.close();
+                    setTimeout(() => {
+                        console.log(`Retrying SSE connection in ${DmApp.config.RETRY_SSE_TIMEOUT / 1000}s...`);
+                        DmApp.sse.connect();
+                    }, DmApp.config.RETRY_SSE_TIMEOUT);
+                };
+                this._addEventListeners();
+            } catch (e) {
+                console.error("Failed to create EventSource:", e);
+                DmApp.ui.updateConnectionStatus(DmApp.config.STATUS_TYPES.ERROR, "SSE failed to initialize");
+                setTimeout(() => {
+                    console.log(`Retrying SSE initialization in ${DmApp.config.RETRY_SSE_TIMEOUT / 1000}s...`);
+                    DmApp.sse.connect();
+                }, DmApp.config.RETRY_SSE_TIMEOUT);
+            }
+        },
+        _addEventListeners() {
+            if (!DmApp.state.eventSource) return;
+            DmApp.state.eventSource.addEventListener(DmApp.config.SSE_EVENTS.PACKET, (e) => this.handlePacketEventDm(e));
+            DmApp.state.eventSource.addEventListener(DmApp.config.SSE_EVENTS.CONNECTION_STATUS, (e) => {
+                try {
+                    const statusData = JSON.parse(e.data);
+                    let status = typeof statusData === 'string' ? statusData : statusData?.status;
+                    let message = typeof statusData === 'string' ? null : statusData?.message;
+                    DmApp.ui.updateConnectionStatus(status || DmApp.config.STATUS_TYPES.UNKNOWN, message);
+                } catch (err) { console.error("Error processing connection_status SSE:", err, e.data); }
+            });
+            DmApp.state.eventSource.addEventListener(DmApp.config.SSE_EVENTS.ERROR, (e) => {
+                try {
+                    const errorData = JSON.parse(e.data);
+                    let errorMessage = typeof errorData === 'string' ? errorData : (errorData?.error ?? JSON.stringify(errorData));
+                    DmApp.ui.showError(`Backend Error: ${errorMessage}`);
+                    DmApp.ui.updateConnectionStatus(DmApp.config.STATUS_TYPES.ERROR, errorMessage);
+                } catch (err) {
+                    const errorText = e.data || "Unknown error from backend";
+                    console.error("Error processing error SSE event:", err, e.data);
+                    DmApp.ui.showError(`Backend Error: ${errorText}`);
+                    DmApp.ui.updateConnectionStatus(DmApp.config.STATUS_TYPES.ERROR, errorText);
+                }
+            });
+            DmApp.state.eventSource.addEventListener(DmApp.config.SSE_EVENTS.NODES, (e) => {
+                try {
+                    const nodesData = JSON.parse(e.data);
+                    const newAllNodes = {};
+                    for (const nodeId in nodesData) {
+                        if (Object.prototype.hasOwnProperty.call(nodesData, nodeId)) {
+                            const normalizedId = DmApp.utils.normalizeNodeId(nodeId);
+                            nodesData[nodeId].node_id = normalizedId;
+                            newAllNodes[normalizedId] = nodesData[nodeId];
+                        }
+                    }
+                    DmApp.state.allNodes = newAllNodes;
+                    DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+                    if (DmApp.state.selectedPeerNodeId && DmApp.state.allNodes[DmApp.state.selectedPeerNodeId]) {
+                        DmApp.state.selectedPeerNodeData = DmApp.state.allNodes[DmApp.state.selectedPeerNodeId];
+                        DmApp.ui.updateNodeDetailsPanel(DmApp.state.selectedPeerNodeData);
+                    }
+                } catch (err) { console.error("Error processing nodes SSE event:", err, e.data); }
+            });
+            DmApp.state.eventSource.addEventListener(DmApp.config.SSE_EVENTS.NODE_UPDATE, (e) => {
+                try {
+                    const nodeUpdate = JSON.parse(e.data);
+                    if (nodeUpdate?.node_id) {
+                        const normalizedNodeId = DmApp.utils.normalizeNodeId(nodeUpdate.node_id);
+                        nodeUpdate.node_id = normalizedNodeId;
+                        DmApp.state.allNodes[normalizedNodeId] = { ...(DmApp.state.allNodes[normalizedNodeId] || {}), ...nodeUpdate };
+                        DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+                        if (normalizedNodeId === DmApp.state.selectedPeerNodeId) {
+                            DmApp.state.selectedPeerNodeData = DmApp.state.allNodes[normalizedNodeId];
+                            DmApp.ui.updateNodeDetailsPanel(DmApp.state.selectedPeerNodeData);
+                        }
+                    }
+                } catch (err) { console.error("Error processing node_update SSE event:", err, e.data); }
+            });
+            DmApp.state.eventSource.addEventListener(DmApp.config.SSE_EVENTS.LOCAL_NODE_INFO, (e) => {
+                try {
+                    const localInfo = JSON.parse(e.data);
+                    if (localInfo?.node_id) {
+                        const normalizedLocalId = DmApp.utils.normalizeNodeId(localInfo.node_id);
+                        if (DmApp.state.currentUserNodeId !== normalizedLocalId) {
+                            DmApp.state.currentUserNodeId = normalizedLocalId;
+                            DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+                        }
+                    }
+                    if (localInfo?.channels_json) {
+                        try {
+                            DmApp.state.localChannelsJson = JSON.parse(localInfo.channels_json);
+                            console.log("Parsed local channels from SSE:", DmApp.state.localChannelsJson);
+                        } catch (jsonErr) { console.error("Error parsing channels_json from SSE:", jsonErr); DmApp.state.localChannelsJson = null; }
+                    } else if (localInfo?.channels) {
+                        DmApp.state.localChannelsJson = localInfo.channels;
+                        console.warn("Received raw 'channels' object via SSE.");
+                    }
+                } catch (err) { console.error("Error processing local_node_info SSE:", err, e.data); }
+            });
+        },
+        handlePacketEventDm(event) {
+
+            try {
+                const packet = JSON.parse(event.data);
+                if (!DmApp.state.currentUserNodeId || DmApp.state.currentUserNodeId === DmApp.config.UNKNOWN_USER_ID) { return; }
+
+                if (packet.fromId && DmApp.state.allNodes[packet.fromId]) {
+                    const node = DmApp.state.allNodes[packet.fromId];
+                    if (packet.rxTime) node.last_heard = packet.rxTime;
+                    if (packet.rxSnr !== undefined) node.snr = packet.rxSnr;
+                    if (packet.rxRssi !== undefined) node.rssi = packet.rxRssi;
+                    if (packet.app_packet_type === 'Position' && packet.decoded?.position) {
+                        node.position = packet.decoded.position;
+                        node.latitude = packet.decoded.position.latitudeI !== undefined ? packet.decoded.position.latitudeI / 1e7 : packet.decoded.position.latitude;
+                        node.longitude = packet.decoded.position.longitudeI !== undefined ? packet.decoded.position.longitudeI / 1e7 : packet.decoded.position.longitude;
+                        node.altitude = packet.decoded.position.altitude;
+                        node.position_time = packet.rxTime || packet.timestamp;
+                    }
+                    if (packet.app_packet_type === 'Telemetry' && packet.decoded?.telemetry?.deviceMetrics) {
+                        const metrics = packet.decoded.telemetry.deviceMetrics;
+                        node.battery_level = metrics.batteryLevel;
+                        node.voltage = metrics.voltage;
+                        node.telemetry_time = packet.rxTime || packet.timestamp;
+                    }
+                    if (packet.fromId === DmApp.state.selectedPeerNodeId) {
+                        DmApp.state.selectedPeerNodeData = node;
+                        DmApp.ui.updateNodeDetailsPanel(node);
+                    }
+                    const sortDependsOnUpdate = ['last_heard', 'snr', 'rssi', 'battery_level'].includes(DmApp.state.currentSortCriteria);
+                    if(sortDependsOnUpdate) {
+                        DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+                    }
+                }
+
+                const packetTypeStr = packet.app_packet_type || (packet.decoded?.portnum);
+                if (packetTypeStr === 'Message' || packetTypeStr === 'TEXT_MESSAGE_APP') {
+                    let fromIdRaw = packet.fromId ?? packet.decoded?.from ?? packet.from;
+                    let toIdRaw = packet.toId ?? packet.decoded?.to ?? packet.to;
+                    if (packet.decoded?.wantAck && packet.decoded?.destination && !toIdRaw) toIdRaw = packet.decoded.destination;
+
+                    const fromId = DmApp.utils.normalizeNodeId(fromIdRaw);
+                    const toId = DmApp.utils.normalizeNodeId(toIdRaw);
+                    const messageTimestamp = packet.timestamp || packet.rxTime || (Date.now() / 1000);
+
+                    const isDmToCurrentUser = (toId === DmApp.state.currentUserNodeId || (toId === '^all' && fromId !== DmApp.state.currentUserNodeId));
+                    const isEchoOfMyMsg = (fromId === DmApp.state.currentUserNodeId);
+                    const isRelevantToActiveChat =
+                        (fromId === DmApp.state.selectedPeerNodeId && isDmToCurrentUser && !isEchoOfMyMsg) ||
+                        (isEchoOfMyMsg && toId === DmApp.state.selectedPeerNodeId);
+
+                    if (isRelevantToActiveChat) {
+                        DmApp.ui.displayDmMessage(packet, false);
+                        if (fromId === DmApp.state.selectedPeerNodeId && isDmToCurrentUser && !isEchoOfMyMsg) {
+                            try {
+                                localStorage.setItem(DmApp.config.LAST_SEEN_PREFIX + fromId, messageTimestamp.toString());
+                                if (DmApp.state.unreadMessages[fromId]) {
+                                    delete DmApp.state.unreadMessages[fromId];
+                                    DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+                                }
+                            } catch (e) { console.warn("Failed to save last seen for active chat:", e); }
+                        }
+                    } else if (isDmToCurrentUser && !isEchoOfMyMsg) {
+                        let lastSeenTimestamp = 0;
+                        try { const storedTs = localStorage.getItem(DmApp.config.LAST_SEEN_PREFIX + fromId); if (storedTs) lastSeenTimestamp = parseFloat(storedTs); }
+                        catch (e) { console.warn("Failed to read last seen for unread:", e); }
+
+                        if (messageTimestamp > lastSeenTimestamp) {
+                            const wasAlreadyUnread = !!DmApp.state.unreadMessages[fromId];
+                            DmApp.state.unreadMessages[fromId] = true;
+                            if (!wasAlreadyUnread) {
+                                DmApp.ui.displayNodeList(Object.values(DmApp.state.allNodes));
+                            } else {
+                                DmApp.ui.setNodeUnreadIndicator(fromId, true);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error processing SSE "packet" event:', e, event.data);
+            }
+        }
+    },
+
+    utils: {
+
+        normalizeNodeId(nodeIdInput) {
+            if (nodeIdInput === null || typeof nodeIdInput === 'undefined') return null;
+            let idStr = String(nodeIdInput).toLowerCase();
+            if (idStr === '0xffffffff' || idStr === '4294967295' || idStr === '^all') return '^all';
+            if (idStr.startsWith('!')) {
+                const hexPart = idStr.substring(1);
+                if (/^[0-9a-f]+$/.test(hexPart)) { return '!' + hexPart.padStart(8, '0'); }
+                return idStr;
+            }
+            if (!isNaN(idStr) && !isNaN(parseFloat(idStr))) {
+                const num = parseInt(idStr, 10);
+                if (num >= 0 && num <= 0xFFFFFFFF) { return '!' + num.toString(16).padStart(8, '0'); }
+            }
+            if (/^[0-9a-f]+$/.test(idStr)) { return '!' + idStr.padStart(8, '0'); }
+            return idStr;
+        },
+        getNodeName(nodeDataOrId) {
+            let nodeId, node;
+            if (typeof nodeDataOrId === 'string') {
+                nodeId = DmApp.utils.normalizeNodeId(nodeDataOrId);
+                node = nodeId ? DmApp.state.allNodes[nodeId] : null;
+            } else if (nodeDataOrId && nodeDataOrId.node_id) {
+                node = nodeDataOrId;
+                nodeId = node.node_id;
+            } else {
+                return DmApp.config.UNKNOWN_USER_ID;
+            }
+
+            if (!nodeId) return DmApp.config.UNKNOWN_USER_ID;
+
+            if (node) {
+                if (node.user?.longName) return node.user.longName;
+                if (node.user?.shortName) return node.user.shortName;
+                if (node.long_name) return node.long_name;
+                if (node.short_name) return node.short_name;
+                if (node.user?.macaddr) return node.user.macaddr;
+                return nodeId;
+            } else {
+                return nodeId;
+            }
+        },
+        getNodeInitials(nodeIdInput) {
+            const name = this.getNodeName(nodeIdInput);
+            if (!name || name === DmApp.config.UNKNOWN_USER_ID || name.startsWith('!') || name.length < 1) {
+                const idStr = String(nodeIdInput || DmApp.config.UNKNOWN_USER_ID);
+                const hexPart = idStr.substring(idStr.length - 2);
+                return (hexPart || '??').toUpperCase();
+            }
+            const words = name.split(/[\s_-]+/).filter(Boolean);
+            if (words.length === 0) return name.substring(0, 2).toUpperCase();
+            if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+            return (words[0][0] + (words[words.length - 1][0] || '')).toUpperCase();
+        },
+        getNodeAccentColor(nodeIdInput) {
+            try {
+                const normalizedId = this.normalizeNodeId(nodeIdInput);
+                if (!normalizedId || normalizedId === DmApp.config.UNKNOWN_USER_ID || !String(normalizedId).startsWith('!')) {
+                    return `hsl(${DmApp.config.DEFAULT_NODE_ID_HUE}, 60%, 30%)`;
+                }
+                const idHex = String(normalizedId).substring(1);
+                if (!/^[0-9a-f]{8}$/.test(idHex)) return `hsl(${DmApp.config.DEFAULT_NODE_ID_HUE}, 60%, 30%)`;
+
+                let hash = 0;
+                for (let i = 0; i < idHex.length; i++) {
+                    hash = idHex.charCodeAt(i) + ((hash << 5) - hash);
+                    hash = hash & hash;
+                }
+                const hue = Math.abs(hash % 360);
+                return `hsl(${hue}, 60%, 30%)`;
+            } catch (e) {
+                console.warn("Error generating node color:", e);
+                return `hsl(${DmApp.config.DEFAULT_NODE_ID_HUE}, 60%, 30%)`;
+            }
+        },
+        formatTime(unixTimestamp) {
+            if (!unixTimestamp || typeof unixTimestamp !== 'number') return 'N/A';
+            try {
+                const date = new Date(unixTimestamp * 1000);
+                if (isNaN(date.getTime())) return 'Invalid Date';
+
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+                const messageDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+                const timeOptions = { hour: 'numeric', minute: '2-digit' };
+                const dateOptions = { month: 'short', day: 'numeric' };
+
+                if (messageDateOnly.getTime() === today.getTime()) {
+                    return date.toLocaleTimeString([], timeOptions);
+                } else if (messageDateOnly.getTime() === yesterday.getTime()) {
+                    return 'Yesterday ' + date.toLocaleTimeString([], timeOptions);
+                } else {
+                    return `${date.toLocaleDateString([], dateOptions)} ${date.toLocaleTimeString([], timeOptions)}`;
+                }
+            } catch (e) {
+                console.error("Error formatting time:", e, "Timestamp:", unixTimestamp);
+                return 'Time Error';
+            }
+        },
+        sanitizeText(text) {
+            if (typeof text !== 'string') return '';
+            const element = document.createElement('div');
+            element.textContent = text;
+            return element.innerHTML;
+        },
+        extractTextFromPayload(payload) {
+            if (typeof payload === 'string') return payload;
+            if (payload instanceof Uint8Array || Array.isArray(payload)) {
+                try {
+                    return new TextDecoder("utf-8", { fatal: false }).decode(payload instanceof Uint8Array ? payload : Uint8Array.from(payload));
+                } catch (e) { return '[Binary Data]'; }
+            }
+            return '[Unknown Payload Format]';
+        },
+        formatBatteryLevel(level) {
+            if (level === null || level === undefined) return `<span class="text-muted" title="Battery Unknown"><i class="fas fa-battery-empty batt-icon"></i> --%</span>`;
+            level = Number(level);
+            let iconClass = 'fa-battery-empty';
+            let colorClass = 'text-muted';
+            if (level > 75) { iconClass = 'fa-battery-full'; colorClass = 'batt-good'; }
+            else if (level > 50) { iconClass = 'fa-battery-three-quarters'; colorClass = 'batt-good'; }
+            else if (level > 25) { iconClass = 'fa-battery-half'; colorClass = 'batt-ok'; }
+            else if (level >= 0) { iconClass = 'fa-battery-quarter'; colorClass = 'batt-low'; }
+            return `<span class="${colorClass}" title="Battery: ${level}%"><i class="fas ${iconClass} batt-icon"></i> ${level}%</span>`;
+        },
+        formatSnr(snr) {
+            if (snr === null || snr === undefined) return `<span class="text-muted" title="SNR Unknown"><i class="fas fa-signal"></i> --</span>`;
+            snr = Number(snr);
+            const snrClass = DmApp.utils.getSnrClass(snr);
+            return `<span class="node-snr ${snrClass}" title="SNR: ${snr.toFixed(1)} dB"><i class="fas fa-signal"></i> ${snr.toFixed(1)}</span>`;
+        },
+        formatHwModel(hwModel) {
+            if (!hwModel) return `<span title="Hardware Unknown"><i class="fas fa-microchip"></i> ???</span>`;
+            const replacements = { 'tbeam': 'TBeam', 'heltec_v3': 'HT V3', 'heltec_v2': 'HT V2', 'heltec_v1': 'HT V1', 'rak4631': 'RAK', 'rak11200': 'RAK', 'rak11310': 'RAK', 'lora_relay_v1': 'Relay', 'nrf52840dk': 'nRF DK', 'esp32': 'ESP32', 't-echo': 'TEcho' };
+            const lowerModel = hwModel.toLowerCase();
+            for (const key in replacements) { if (lowerModel.includes(key)) return `<span class="node-hw" title="${DmApp.utils.sanitizeText(hwModel)}"><i class="fas fa-microchip"></i> ${replacements[key]}</span>`; }
+            const shortName = hwModel.length > 10 ? hwModel.split(/[_ -]/)[0].toUpperCase() : hwModel;
+            return `<span class="node-hw" title="${DmApp.utils.sanitizeText(hwModel)}"><i class="fas fa-microchip"></i> ${shortName}</span>`;
+        },
+        formatRole(role) {
+            if (!role) return `<span title="Role Unknown"><i class="fas fa-question-circle"></i></span>`;
+            const icon = DmApp.utils.getRoleIcon(role);
+            return `<span class="node-role" title="Role: ${DmApp.utils.sanitizeText(role)}"><i class="${icon}"></i> ${DmApp.utils.sanitizeText(role)}</span>`;
+        },
+        getSnrClass(snr) {
+            if (snr === null || snr === undefined) return 'text-muted';
+            if (snr >= 5) return 'snr-good'; if (snr >= 0) return 'snr-ok'; return 'snr-bad';
+        },
+        getRssiClass(rssi) {
+            if (rssi === null || rssi === undefined) return 'text-muted';
+            if (rssi >= -80) return 'rssi-good'; if (rssi >= -100) return 'rssi-ok'; return 'rssi-bad';
+        },
+        getRoleIcon(role) {
+            if (!role) return 'fas fa-question-circle';
+            const r = String(role).toUpperCase();
+            if (r.includes('ROUTER_CLIENT')) return 'fas fa-route';
+            if (r.includes('ROUTER')) return 'fas fa-network-wired';
+            if (r.includes('REPEATER')) return 'fas fa-sync-alt';
+            if (r.includes('CLIENT')) return 'fas fa-mobile-alt';
+            if (r.includes('TRACKER')) return 'fas fa-map-marker-alt';
+            if (r.includes('SENSOR')) return 'fas fa-thermometer-half';
+            return 'fas fa-user-cog';
+        },
+        getChannelName(channelIndexOrId) {
+            if (channelIndexOrId === undefined || channelIndexOrId === null) return null;
+            const channels = DmApp.state.localChannelsJson;
+            if (channels && Array.isArray(channels)) {
+                const byIndex = channels.find(ch => ch?.index === channelIndexOrId);
+                if (byIndex?.settings?.name) return byIndex.settings.name;
+                const byNumId = channels.find(ch => ch?.settings?.numericId === channelIndexOrId);
+                if (byNumId?.settings?.name) return byNumId.settings.name;
+            }
+            return null;
+        },
+        ensureSerializable(obj) {
+
+            if (obj === null || obj === undefined || typeof obj !== 'object') { return obj; }
+            if (obj instanceof Set) { return Array.from(obj).map(DmApp.utils.ensureSerializable); }
+            if (obj instanceof Map) { obj = Object.fromEntries(obj); }
+            if (Array.isArray(obj)) { return obj.map(DmApp.utils.ensureSerializable); }
+
+            const cleaned = {}; const seen = new WeakSet();
+            function recurse(currentObj, currentCleaned, currentSeen) {
+                for (const key in currentObj) {
+                    if (Object.prototype.hasOwnProperty.call(currentObj, key)) {
+                        const value = currentObj[key];
+                        if (typeof value === 'object' && value !== null) {
+                            if (currentSeen.has(value)) { currentCleaned[key] = "[Circular Reference]"; continue; }
+                            currentSeen.add(value);
+                            if (value instanceof Set) { currentCleaned[key] = Array.from(value).map(DmApp.utils.ensureSerializable); }
+                            else if (value instanceof Map) { currentCleaned[key] = DmApp.utils.ensureSerializable(Object.fromEntries(value));}
+                            else if (Array.isArray(value)) { currentCleaned[key] = value.map(DmApp.utils.ensureSerializable); }
+                            else { currentCleaned[key] = {}; recurse(value, currentCleaned[key], currentSeen); }
+                            currentSeen.delete(value);
+                        } else {
+                            currentCleaned[key] = value;
+                        }
+                    }
+                }
+            }
+            recurse(obj, cleaned, seen);
+            return cleaned;
+        }
+    }
+}; 
+
+document.addEventListener('DOMContentLoaded', () => {
+    DmApp.init();
+});
+</script>
+
+</body>
+</html>
+
+<div class="footer-container">
+    <div class="footer-left">
+        <div class="footer-item">
+            <i class="fas fa-cubes"></i>
+            <span><a href="https://meshdash.co.uk/">MeshDash</a>:</span>
+            <strong>Rusjp</strong>
+        </div>
+
+        <div class="footer-divider">|</div>
+
+        <div class="footer-item">
+            <span>Version:</span>
+            <strong id="md-installed-version">Loading...</strong>
+        </div>
+
+        <div id="md-update-container" style="display: none;">
+            <div class="footer-divider">|</div>
+            <div class="footer-item">
+                <i class="fas fa-arrow-circle-up"></i>
+                <span>Update Available:</span>
+                <strong id="md-latest-version"></strong>
+                <button id="md-update-btn">Info</button>
+                 <button class="debug-button" id="debug-button" onclick="toggleDebugPanel()">
+                    <i class="fas fa-bug"></i> Debug
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+
+    const LOCAL_CONFIG_API_URL = '/api/system/config/'; 
+    const EXTERNAL_VERSION_API_URL = 'https://meshdash.co.uk/api.php?view=version'; 
+
+    const instVerSpan = document.getElementById('md-installed-version');
+    const updateContainer = document.getElementById('md-update-container');
+    const latestVersionSpan = document.getElementById('md-latest-version');
+    const updateModal = document.getElementById('md-update-modal'); 
+    const updateBtn = document.getElementById('md-update-btn');
+    const modalCloseBtn = document.getElementById('md-modal-close-btn'); 
+
+    async function fetchLocalConfig() {
+        console.debug(`Workspaceing local config from: ${LOCAL_CONFIG_API_URL}`);
+        try {
+            const response = await fetch(LOCAL_CONFIG_API_URL);
+            if (!response.ok) {
+                console.error(`Error fetching local config: ${response.status} ${response.statusText}`);
+                let errorBody = 'Could not read error body.';
+                 try { errorBody = await response.text(); } catch(e){}
+                 console.error("Local config error body:", errorBody);
+                return null;
+            }
+            const configData = await response.json();
+            console.debug("Received local config data:", configData);
+            return configData;
+        } catch (error) {
+            console.error('Failed to fetch or parse local configuration:', error);
+            return null;
+        }
+    }
+
+    async function fetchExternalVersion() {
+        console.debug(`Workspaceing latest version from: ${EXTERNAL_VERSION_API_URL}`);
+         try {
+            const response = await fetch(EXTERNAL_VERSION_API_URL);
+             if (!response.ok) {
+                 console.error(`Error fetching external version: ${response.status} ${response.statusText}`);
+                 let errorBody = 'Could not read error body.';
+                 try { errorBody = await response.text(); } catch(e){}
+                 console.error("External version error body:", errorBody);
+                 return null;
+            }
+            const versionData = await response.json();
+             console.debug("Received external version data:", versionData);
+             return versionData;
+        } catch (error) {
+            console.error('Error fetching or parsing external version:', error);
+             return null;
+        }
+    }
+
+    function compareVersions(v1, v2) {
+        if (!v1 || typeof v1 !== 'string' || !v2 || typeof v2 !== 'string' || !v1.startsWith('R') || !v2.startsWith('R')) {
+            console.warn(`Invalid version format for comparison: v1='${v1}', v2='${v2}'`);
+            return 0;
+        }
+        try {
+            const p1 = v1.substring(1).split('.').map(Number);
+            const p2 = v2.substring(1).split('.').map(Number);
+            if (p1.some(isNaN) || p2.some(isNaN)) {
+                console.warn(`Non-numeric part found in version: v1='${v1}', v2='${v2}'`);
+                return 0; 
+            }
+            const len = Math.max(p1.length, p2.length);
+            for (let i = 0; i < len; i++) {
+                const n1 = p1[i] || 0; 
+                const n2 = p2[i] || 0;
+                if (n1 < n2) return -1;
+                if (n1 > n2) return 1;
+            }
+            return 0; 
+        } catch (e) {
+            console.error(`Error comparing versions v1='${v1}', v2='${v2}':`, e);
+            return 0; 
+        }
+    }
+
+    async function initFooter() {
+
+        if (!instVerSpan || !updateContainer || !latestVersionSpan) {
+            console.error('Footer initialization failed: missing essential display elements (installed version, update container, or latest version).');
+            if (instVerSpan) instVerSpan.textContent = 'Error!';
+            return;
+        }
+         if (updateBtn && (!updateModal || !modalCloseBtn)) {
+            console.warn('Modal elements (md-update-modal, md-modal-close-btn) seem missing. Update info button might not work.');
+        }
+
+        let installedVersion = null;
+
+        const localConfig = await fetchLocalConfig();
+        if (localConfig && localConfig.INSTALLED_VERSION) {
+            installedVersion = localConfig.INSTALLED_VERSION.trim();
+            instVerSpan.textContent = installedVersion; 
+            instVerSpan.style.color = ''; 
+        } else {
+            console.error("Could not retrieve installed version from local config API.");
+            instVerSpan.textContent = 'Error!';
+            instVerSpan.style.color = 'red';
+            return; 
+        }
+
+        const externalData = await fetchExternalVersion();
+        if (externalData && externalData.version && typeof externalData.version === 'string') {
+            const latestAvailableVersion = externalData.version.trim();
+
+            const comparisonResult = compareVersions(installedVersion, latestAvailableVersion);
+            console.log(`Version Comparison: Installed='${installedVersion}', Latest='${latestAvailableVersion}', Result=${comparisonResult}`);
+
+            if (comparisonResult < 0) {
+
+                console.log("Update available!");
+                latestVersionSpan.textContent = latestAvailableVersion;
+                updateContainer.style.display = 'flex'; 
+
+                 if (updateBtn) updateBtn.style.display = 'inline-block';
+            } else if (comparisonResult === 0) {
+                console.log("Version is up to date.");
+                updateContainer.style.display = 'none'; 
+            } else {
+                console.log("Installed version is newer than external version (or equal/error).");
+                 updateContainer.style.display = 'none'; 
+            }
+        } else {
+            console.warn("Could not retrieve latest version from external API. Update check skipped.");
+
+             updateContainer.style.display = 'none';
+        }
+
+        if (updateBtn && updateModal && modalCloseBtn) {
+             updateBtn.addEventListener('click', () => {
+                updateModal.style.display = 'block';
+            });
+
+            modalCloseBtn.addEventListener('click', () => {
+                updateModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (e) => {
+                if (e.target === updateModal) {
+                    updateModal.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && updateModal.style.display === 'block') {
+                    updateModal.style.display = 'none';
+                }
+            });
+        } else {
+
+             if(updateBtn) updateBtn.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initFooter);
+
+})();
+</script>

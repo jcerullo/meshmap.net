@@ -1,0 +1,38 @@
+
+
+[0;32m[1m======================================================================
+#                  MeshDash Installation Complete!                   #
+#                     (Installed Version: R1.6)                      #
+======================================================================[0m
+
+[0;34m[INFO][0m [1mInstallation Details:[0m
+  Installation Location:    [1m/home/pi/meshmap.net/mesh-dash[0m
+  Installation Owner:       [1mpi[0m (User running app/service)
+  Virtual Environment:      [1m/home/pi/meshmap.net/mesh-dash/mesh-dash_venv[0m
+    (Python: [1mpython3[0m - Version: [1m3.11.2[0m)
+  Main App Script:          [1m/home/pi/meshmap.net/mesh-dash/meshtastic_dashboard.py[0m
+  Config File:              [1m/home/pi/meshmap.net/mesh-dash/.mesh-dash_config[0m
+  Manual Run Script:        [1m/home/pi/meshmap.net/mesh-dash/run_meshdash.sh[0m
+  Management Tools:         [1m/home/pi/meshmap.net/mesh-dash/mesh_dash_tools.sh[0m
+
+[0;34m[INFO][0m [1mConfiguration Used:[0m
+  - Meshtastic Device:      [1m10.0.0.37:4403[0m
+  - Web Server:             [1m0.0.0.0:8000[0m (Access via http://)
+
+[0;34m[INFO][0m [1mAccessing the Dashboard:[0m
+  Server listens on all network interfaces.
+  Try accessing via these URLs from a web browser:
+    [0;36mhttp://10.0.0.123:8000[0m
+    [0;36mhttp://172.17.0.1:8000[0m
+    [0;36mhttp://localhost:8000[0m (from this machine)
+
+[0;34m[INFO][0m [1mSystemd Service Status:[0m
+  Service 'mesh-dash' is running and enabled (user 'pi').
+  Dashboard should be accessible at URLs above.
+  Manage with: [0;36msudo systemctl status/start/stop/restart mesh-dash[0m
+
+[0;34m[INFO][0m [1mManaging Installation:[0m
+  Use Management Tools ('mesh_dash_tools.sh'):
+    Service (start/stop/status), Config (view/edit), etc.
+  Run: [0;36mcd "/home/pi/meshmap.net/mesh-dash" && sudo ./mesh_dash_tools.sh help[0m
+

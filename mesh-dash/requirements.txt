@@ -1,0 +1,14 @@
+beautifulsoup4
+croniter
+fastapi
+httpx
+meshtastic
+pydantic
+pypubsub
+requests
+sse-starlette
+uvicorn
+tzlocal
+python-jose
+python-multipart
+passlib

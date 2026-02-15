@@ -1,0 +1,27 @@
+# MeshDash Configuration File
+
+MESHTASTIC_HOST="10.0.0.37"
+MESHTASTIC_PORT="4403"
+
+WEBSERVER_HOST="0.0.0.0"
+WEBSERVER_PORT="8000"
+
+LOG_LEVEL="INFO"
+DB_PATH="meshtastic_data.db"
+MAX_PACKETS_MEMORY=200
+HISTORY_DAYS="30"
+
+SEND_LOCAL_NODE_LOCATION=false
+SEND_OTHER_NODES_LOCATION=true
+COMMUNITY_API=false
+LOCATION_OFFSET_ENABLED=false
+LOCATION_OFFSET_METERS=0.0
+
+AUTH_TOKEN_EXPIRE_MINUTES=30
+
+
+INSTALLED_VERSION="R1.6"
+
+# --- Informational comments from installer ---
+# Python command used during installation for venv creation: python3
+# Python version detected during installation: 3.11.2
